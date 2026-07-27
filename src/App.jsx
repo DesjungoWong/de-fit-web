@@ -4,6 +4,8 @@ import TodayScreen from './screens/TodayScreen'
 import LogScreen from './screens/LogScreen'
 import HealthScreen from './screens/HealthScreen'
 import SettingsScreen from './screens/SettingsScreen'
+import LoginScreen from './screens/LoginScreen'
+import { getCurrentUser, clearCurrentUser } from './store/authStore'
 
 const DeLogo = () => (
   <svg width="26" height="26" viewBox="0 0 72 72" aria-hidden="true">
@@ -20,11 +22,29 @@ const DeLogo = () => (
 export default function App() {
   const [tab, setTab] = useState('today')
   const [isDark, setIsDark] = useState(() => localStorage.getItem('defit_theme') !== 'light')
+  const [currentUser, setCurrentUser2] = useState(() => getCurrentUser())
 
   useEffect(() => {
     applyTheme(isDark ? dark : light)
     localStorage.setItem('defit_theme', isDark ? 'dark' : 'light')
   }, [isDark])
+
+  function handleLogin() {
+    setCurrentUser2(getCurrentUser())
+  }
+
+  function handleLogout() {
+    clearCurrentUser()
+    setCurrentUser2(null)
+  }
+
+  if (!currentUser) {
+    return (
+      <div style={{ background: 'var(--bg)', minHeight: '100dvh', fontFamily: "'Inter', system-ui, sans-serif" }}>
+        <LoginScreen onLogin={handleLogin} />
+      </div>
+    )
+  }
 
   const screens = {
     today: TodayScreen,
@@ -44,7 +64,9 @@ export default function App() {
             <span style={{ color: 'var(--purple)' }}>DE</span>.Fit
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.username}</span>
+          <div onClick={handleLogout} title="Logout" style={{ fontSize: 14, color: 'var(--muted)', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, border: '0.5px solid var(--border)', lineHeight: 1 }}>↩</div>
           <span style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: '.06em' }}>{isDark ? 'DARK' : 'LIGHT'}</span>
           <div onClick={() => setIsDark(d => !d)} style={{ width: 42, height: 23, borderRadius: 12, background: isDark ? 'var(--purple)' : '#ccc', position: 'relative', cursor: 'pointer', transition: 'background .2s' }}>
             <div style={{ position: 'absolute', top: 3, left: isDark ? 21 : 3, width: 17, height: 17, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />

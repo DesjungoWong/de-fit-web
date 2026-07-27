@@ -2,15 +2,54 @@ import React, { useState } from 'react'
 import { useDayStore } from '../store/dayStore'
 import { hasEnvKey } from '../api/claude'
 import { getSettings, saveSettings } from '../store/dayStore'
+import JSZip from 'jszip'
+import { parseHealthConnect } from '../lib/healthParser'
+
+async function extractDbFromZip(zipBlob) {
+  const zip = await JSZip.loadAsync(zipBlob)
+  const entry = zip.file('health_connect_export.db')
+  if (!entry) throw new Error('health_connect_export.db not found in ZIP')
+  return entry.async('blob')
+}
 
 export default function SettingsScreen({ isDark, onToggle, onNavigate }) {
-  const { calorieGoal, setCalorieGoal, health } = useDayStore()
+  const { calorieGoal, setCalorieGoal, health, setHealth } = useDayStore()
   const s0 = getSettings()
   const [kcalTarget, setKcalTarget] = useState(calorieGoal)
   const [fasting, setFasting] = useState(s0.fasting ?? false)
   const [apiKey, setApiKey] = useState(localStorage.getItem('claude_api_key') || '')
   const [drivePath, setDrivePath] = useState(s0.drivePath || '')
+  const [batchLoading, setBatchLoading] = useState(false)
+  const [batchMsg, setBatchMsg] = useState('')
+  const [batchError, setBatchError] = useState('')
+  const [lastBatchRun, setLastBatchRun] = useState(s0.lastBatchRun || null)
   const envKey = hasEnvKey()
+
+  async function runBatchJob(fileId) {
+    if (!fileId) { setBatchError('Enter a Google Drive file ID first'); return }
+    setBatchLoading(true); setBatchMsg('Downloading from Google Drive…'); setBatchError('')
+    try {
+      const r = await fetch(`/api/gdrive?fileId=${fileId}`)
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        throw new Error(j.error || `HTTP ${r.status}`)
+      }
+      setBatchMsg('Extracting ZIP…')
+      const zipBlob = await r.blob()
+      const dbBlob = await extractDbFromZip(zipBlob)
+      setBatchMsg('Parsing health data…')
+      const result = await parseHealthConnect(dbBlob)
+      setHealth(result)
+      const now = Date.now()
+      setLastBatchRun(now)
+      persist({ lastBatchRun: now })
+      setBatchMsg('✓ Imported successfully')
+    } catch (err) {
+      setBatchError(err.message)
+      setBatchMsg('')
+    }
+    setBatchLoading(false)
+  }
 
   function persist(patch) {
     saveSettings({ ...getSettings(), ...patch })
@@ -100,6 +139,44 @@ export default function SettingsScreen({ isDark, onToggle, onNavigate }) {
       />
 
       <SectionHeader title="Data" />
+
+      <Row
+        label="Google Drive file ID"
+        sub="health_connect_export.zip file ID from Google Drive"
+        right={
+          <input
+            value={drivePath}
+            onChange={e => { setDrivePath(e.target.value); persist({ drivePath: e.target.value }) }}
+            placeholder="1AbCdEf…"
+            style={{ background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '7px 10px', fontSize: 11, width: 130, outline: 'none', fontFamily: 'inherit' }}
+          />
+        }
+      />
+
+      <div style={{ padding: '10px 16px', borderBottom: '0.5px solid var(--border)' }}>
+        <div style={{ fontSize: 10, color: 'var(--dim)', marginBottom: 8 }}>
+          {lastBatchRun
+            ? `Last batch run: ${new Date(lastBatchRun).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+            : 'Never run'}
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div
+            onClick={() => !batchLoading && runBatchJob(drivePath)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: batchLoading ? 'var(--panel)' : 'var(--purple)', color: batchLoading ? 'var(--muted)' : '#fff',
+              borderRadius: 6, padding: '7px 16px', fontSize: 11, cursor: batchLoading ? 'not-allowed' : 'pointer',
+              fontWeight: 500, border: `0.5px solid ${batchLoading ? 'var(--border)' : 'var(--purple)'}`, transition: 'background .15s'
+            }}
+          >
+            {batchLoading ? batchMsg || 'Running…' : '▶ Run batch now'}
+          </div>
+          {!batchLoading && batchMsg && (
+            <span style={{ fontSize: 11, color: 'var(--green)' }}>{batchMsg}</span>
+          )}
+        </div>
+        {batchError && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6 }}>{batchError}</div>}
+      </div>
 
       <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
         <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 3 }}>Health Connect import</div>

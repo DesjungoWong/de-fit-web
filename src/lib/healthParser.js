@@ -155,6 +155,8 @@ function dayStart(tsMs) {
 }
 
 export async function parseHealthConnect(dbFile) {
+  const debugLog = []
+  try {
   const pageSize = await getPageSize(dbFile)
 
   const needed = [
@@ -166,6 +168,10 @@ export async function parseHealthConnect(dbFile) {
     'hydration_record_table'
   ]
   const roots = await getTableRootPages(dbFile, pageSize, needed)
+
+  // Debug: log which tables were found
+  debugLog.push({ event: 'tables_found', roots: Object.entries(roots).map(([name, rootPage]) => ({ name, rootPage })) })
+  debugLog.push({ event: 'tables_missing', missing: needed.filter(n => !roots[n]) })
 
   const DAY = 86400000
   const now = Date.now()
@@ -187,6 +193,7 @@ export async function parseHealthConnect(dbFile) {
   let stepsByDay = {}
   if (roots['steps_record_table']) {
     const cells = await traverseBtree(dbFile, roots['steps_record_table'], pageSize)
+    debugLog.push({ event: 'steps_cells', count: cells.length, firstCell: cells[0]?.values ?? null })
     for (const { values } of cells) {
       const t = values[8]; const count = values[13]
       if (!t || !count) continue
@@ -200,6 +207,7 @@ export async function parseHealthConnect(dbFile) {
   let heartRate = null, hrTime = 0
   if (roots['resting_heart_rate_record_table']) {
     const cells = await traverseBtree(dbFile, roots['resting_heart_rate_record_table'], pageSize)
+    debugLog.push({ event: 'hr_cells', count: cells.length, firstCell: cells[0]?.values ?? null })
     for (const { values } of cells) {
       const t = values[8]; const bpm = values[13]
       if (t > hrTime && bpm) { hrTime = t; heartRate = bpm }
@@ -210,6 +218,7 @@ export async function parseHealthConnect(dbFile) {
   let sleep = null, sleepTime = 0
   if (roots['sleep_session_record_table']) {
     const cells = await traverseBtree(dbFile, roots['sleep_session_record_table'], pageSize)
+    debugLog.push({ event: 'sleep_cells', count: cells.length, firstCell: cells[0]?.values ?? null })
     for (const { values } of cells) {
       const start = values[8]; const end = values[10]
       if (start > sleepTime && end) {
@@ -222,6 +231,7 @@ export async function parseHealthConnect(dbFile) {
   let weight = null, wTime = 0
   if (roots['weight_record_table']) {
     const cells = await traverseBtree(dbFile, roots['weight_record_table'], pageSize)
+    debugLog.push({ event: 'weight_cells', count: cells.length, firstCell: cells[0]?.values ?? null })
     for (const { values } of cells) {
       const t = values[8]; const w = values[13]
       if (t > wTime && w) { wTime = t; weight = parseFloat(w).toFixed(1) }
@@ -277,6 +287,10 @@ export async function parseHealthConnect(dbFile) {
     hydration,
     bmi,
     last7,          // [{dayStart, steps, activeCalories, hydration}] — last 7 days
-    importedAt: Date.now()
+    importedAt: Date.now(),
+    debugLog
+  }
+  } catch (err) {
+    return { error: err.message, debugLog }
   }
 }

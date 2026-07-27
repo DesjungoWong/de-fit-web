@@ -101,6 +101,8 @@ export default function HealthScreen() {
   })
 
   const hasData = !!(m.steps || m.heartRate || m.sleep || m.weight)
+  const allZero = m.importedAt && !hasData
+  const [showDebug, setShowDebug] = useState(false)
 
   return (
     <div style={{ overflowY: 'auto', height: '100%', padding: '12px 14px 24px', boxSizing: 'border-box' }}>
@@ -118,7 +120,7 @@ export default function HealthScreen() {
             {loading ? loadingMsg || 'Processing…' : 'Import Health Connect'}
           </div>
           <div style={{ fontSize: 10, color: 'var(--dim)', marginTop: 1 }}>
-            {lastImportStr ? `Last import: ${lastImportStr}` : 'Select health_connect_export.zip or .db'}
+            {lastImportStr ? (allZero ? 'Re-import to refresh data' : `Last import: ${lastImportStr}`) : 'Select health_connect_export.zip or .db'}
           </div>
         </div>
         {!loading && <span style={{ fontSize: 14, color: 'var(--purple)' }}>↑</span>}
@@ -193,6 +195,32 @@ export default function HealthScreen() {
         <div style={{ textAlign: 'center', padding: '20px 16px', color: 'var(--dim)', fontSize: 11, lineHeight: 1.7 }}>
           On your phone: Health Connect → Settings → Export data<br/>
           Then tap Import above to load your .zip file
+        </div>
+      )}
+
+      {/* Debug section */}
+      {(m.debugLog || m.error) && (
+        <div style={{ background: 'var(--panel)', borderRadius: 10, padding: '10px 14px', marginBottom: 8 }}>
+          <div
+            onClick={() => setShowDebug(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+          >
+            <span style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)' }}>Debug</span>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>{showDebug ? '▲' : '▼'}</span>
+          </div>
+          {showDebug && (
+            <div style={{ marginTop: 8, fontFamily: 'monospace', fontSize: 10, lineHeight: 1.6 }}>
+              {m.error && (
+                <div style={{ color: 'var(--red)', marginBottom: 6 }}>Error: {m.error}</div>
+              )}
+              {(m.debugLog || []).map((entry, i) => (
+                <div key={i} style={{ color: 'var(--muted)', borderBottom: '0.5px solid var(--border)', paddingBottom: 4, marginBottom: 4 }}>
+                  <span style={{ color: 'var(--text)' }}>{entry.event}</span>:{' '}
+                  {JSON.stringify(entry, (k, v) => k === 'event' ? undefined : v)}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

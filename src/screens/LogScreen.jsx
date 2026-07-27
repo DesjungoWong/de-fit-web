@@ -116,59 +116,61 @@ export default function LogScreen() {
       <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
         <TabBtn id="search" label="Search" />
         <TabBtn id="catalog" label="Catalog" />
-        <TabBtn id="recent" label="Recent" />
+        <TabBtn id="scan" label="Scan" />
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+      {/* Search tab */}
+      {(subTab === 'search' || subTab === 'catalog') && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+          {/* Search input */}
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search foods…"
+            style={{ width: '100%', background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: 'var(--text)', fontFamily: 'inherit', outline: 'none', marginBottom: 10, boxSizing: 'border-box' }}
+          />
 
-        {(subTab === 'search' || subTab === 'catalog') && (
-          <>
-            {/* Search input */}
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search foods…"
-              style={{ width: '100%', background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: 'var(--text)', fontFamily: 'inherit', outline: 'none', marginBottom: 10, boxSizing: 'border-box' }}
-            />
-
-            {/* Category chips */}
-            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12, paddingBottom: 4 }}>
-              {Object.entries(catLabels).map(([id, label]) => (
-                <div
-                  key={id}
-                  onClick={() => setCategory(id)}
-                  style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 20, fontSize: 11, cursor: 'pointer', background: category === id ? 'var(--purple)' : 'var(--panel)', color: category === id ? '#fff' : 'var(--muted)', border: `0.5px solid ${category === id ? 'var(--purple)' : 'var(--border)'}`, transition: 'background .15s' }}
-                >
-                  {label}
-                </div>
-              ))}
-            </div>
-
-            {/* Food list */}
-            {filtered.map(f => (
+          {/* Category chips */}
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12, paddingBottom: 4 }}>
+            {Object.entries(catLabels).map(([id, label]) => (
               <div
-                key={f.id}
-                style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: '0.5px solid var(--border)', cursor: 'pointer' }}
-                onClick={() => handleAdd(f)}
+                key={id}
+                onClick={() => setCategory(id)}
+                style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 20, fontSize: 11, cursor: 'pointer', background: category === id ? 'var(--purple)' : 'var(--panel)', color: category === id ? '#fff' : 'var(--muted)', border: `0.5px solid ${category === id ? 'var(--purple)' : 'var(--border)'}`, transition: 'background .15s' }}
               >
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, color: 'var(--text)' }}>{f.name}</div>
-                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{f.servingSize} · P {f.protein}g · C {f.carbs}g · F {f.fat}g</div>
-                </div>
-                <div style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: 'var(--purple)', marginLeft: 10 }}>{f.calories}</div>
+                {label}
               </div>
             ))}
-            {filtered.length === 0 && <div style={{ color: 'var(--dim)', fontSize: 13, paddingTop: 20 }}>No foods found. Try AI estimation below.</div>}
-          </>
-        )}
+          </div>
 
-        {subTab === 'recent' && (
-          <>
+          {/* Food list */}
+          {filtered.map(f => (
+            <div
+              key={f.id}
+              style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: '0.5px solid var(--border)', cursor: 'pointer' }}
+              onClick={() => handleAdd(f)}
+            >
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, color: 'var(--text)' }}>{f.name}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{f.servingSize} · P {f.protein}g · C {f.carbs}g · F {f.fat}g</div>
+              </div>
+              <div style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: 'var(--purple)', marginLeft: 10 }}>{f.calories}</div>
+            </div>
+          ))}
+          {filtered.length === 0 && <div style={{ color: 'var(--dim)', fontSize: 13, paddingTop: 20 }}>No foods found. Try the Scan tab to use AI estimation.</div>}
+        </div>
+      )}
+
+      {/* Scan tab — recents + AI estimation */}
+      {subTab === 'scan' && (
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          {/* Recently logged */}
+          <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
             <div style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 10 }}>Recently logged</div>
             {entries.length === 0 ? (
-              <div style={{ color: 'var(--dim)', fontSize: 13 }}>No items logged yet today.</div>
-            ) : [...entries].reverse().map((e, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '0.5px solid var(--border)' }}>
+              <div style={{ color: 'var(--dim)', fontSize: 12 }}>No items logged yet today.</div>
+            ) : [...entries].reverse().slice(0, 5).map((e, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < Math.min(entries.length, 5) - 1 ? '0.5px solid var(--border)' : 'none' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, color: 'var(--text)' }}>{e.name}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>P {e.protein || 0}g · C {e.carbs || 0}g · F {e.fat || 0}g</div>
@@ -182,64 +184,65 @@ export default function LogScreen() {
                 </div>
               </div>
             ))}
-          </>
-        )}
-      </div>
+          </div>
 
-      {/* AI Estimation sticky bottom panel */}
-      <div style={{ flexShrink: 0, borderTop: '0.5px solid var(--border)', background: 'var(--bg)', padding: '10px 16px 14px' }}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-          {['gallery', 'describe'].map(m => (
-            <div
-              key={m}
-              onClick={() => setAiMode(m)}
-              style={{ flex: 1, textAlign: 'center', padding: '7px 0', borderRadius: 6, fontSize: 11, cursor: 'pointer', background: aiMode === m ? 'var(--purple)' : 'var(--panel)', color: aiMode === m ? '#fff' : 'var(--muted)', border: `0.5px solid ${aiMode === m ? 'var(--purple)' : 'var(--border)'}` }}
-            >
-              {m === 'gallery' ? '🖼 Gallery' : '✎ Describe'}
+          {/* AI Estimation section */}
+          <div style={{ flex: 1, padding: '14px 16px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 12 }}>AI Estimation</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {['gallery', 'describe'].map(m => (
+                <div
+                  key={m}
+                  onClick={() => setAiMode(m)}
+                  style={{ flex: 1, textAlign: 'center', padding: '10px 0', borderRadius: 8, fontSize: 12, cursor: 'pointer', background: aiMode === m ? 'var(--purple)' : 'var(--panel)', color: aiMode === m ? '#fff' : 'var(--muted)', border: `0.5px solid ${aiMode === m ? 'var(--purple)' : 'var(--border)'}` }}
+                >
+                  {m === 'gallery' ? '🖼 Gallery' : '✎ Describe'}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {aiMode === 'gallery' && (
-          <div>
-            {preview ? (
-              <div style={{ position: 'relative', marginBottom: 8 }}>
-                <img src={preview} alt="Food" style={{ width: '100%', maxHeight: 120, objectFit: 'cover', borderRadius: 8 }} />
-                <div onClick={() => { setPreview(null); setImageDataUrl(null); setResult(null) }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,.6)', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12 }}>✕</div>
+            {aiMode === 'gallery' && (
+              <div style={{ flex: 1 }}>
+                {preview ? (
+                  <div style={{ position: 'relative', marginBottom: 10 }}>
+                    <img src={preview} alt="Food" style={{ width: '100%', maxHeight: 180, objectFit: 'cover', borderRadius: 8 }} />
+                    <div onClick={() => { setPreview(null); setImageDataUrl(null); setResult(null) }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,.6)', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12 }}>✕</div>
+                  </div>
+                ) : (
+                  <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 100, borderRadius: 8, border: '0.5px dashed var(--border)', cursor: 'pointer', marginBottom: 10 }}>
+                    <span style={{ fontSize: 24 }}>📷</span>
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>Tap to pick image</span>
+                    <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+                  </label>
+                )}
+                {imageDataUrl && (
+                  <button onClick={runEstimateImage} disabled={loading} style={{ width: '100%', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '11px 0', fontSize: 11, cursor: 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit', letterSpacing: '.06em' }}>
+                    {loading ? 'Analysing…' : 'ESTIMATE WITH AI'}
+                  </button>
+                )}
               </div>
-            ) : (
-              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 60, borderRadius: 8, border: '0.5px dashed var(--border)', cursor: 'pointer', marginBottom: 8 }}>
-                <span style={{ fontSize: 20 }}>📷</span>
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Tap to pick image</span>
-                <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
-              </label>
             )}
-            {imageDataUrl && (
-              <button onClick={runEstimateImage} disabled={loading} style={{ width: '100%', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 0', fontSize: 11, cursor: 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit', letterSpacing: '.06em' }}>
-                {loading ? 'Analysing…' : 'ESTIMATE WITH AI'}
-              </button>
+
+            {aiMode === 'describe' && (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <textarea
+                  value={desc}
+                  onChange={e => setDesc(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), runEstimateText())}
+                  placeholder="Describe meal — e.g. chicken rice with skin, bowl of laksa"
+                  style={{ flex: 1, minHeight: 80, background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontSize: 12, color: 'var(--text)', fontFamily: 'inherit', outline: 'none', resize: 'none' }}
+                />
+                <button onClick={runEstimateText} disabled={loading || !desc.trim()} style={{ width: '100%', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '11px 0', fontSize: 11, cursor: 'pointer', opacity: loading || !desc.trim() ? 0.6 : 1, fontFamily: 'inherit', letterSpacing: '.06em' }}>
+                  {loading ? 'Estimating…' : 'ESTIMATE WITH AI'}
+                </button>
+              </div>
             )}
-          </div>
-        )}
 
-        {aiMode === 'describe' && (
-          <div style={{ display: 'flex', gap: 8 }}>
-            <textarea
-              value={desc}
-              onChange={e => setDesc(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), runEstimateText())}
-              placeholder="Describe meal — e.g. chicken rice with skin, bowl of laksa"
-              style={{ flex: 1, background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 6, padding: '9px 12px', fontSize: 12, color: 'var(--text)', fontFamily: 'inherit', outline: 'none', resize: 'none', height: 60 }}
-            />
-            <button onClick={runEstimateText} disabled={loading || !desc.trim()} style={{ background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '0 14px', fontSize: 11, cursor: 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit', letterSpacing: '.04em' }}>
-              {loading ? '…' : 'GO'}
-            </button>
+            {error && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8 }}>{error}</div>}
+            {result && <ResultCard items={result} onAdd={handleAdd} />}
           </div>
-        )}
-
-        {error && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6 }}>{error}</div>}
-        {result && <ResultCard items={result} onAdd={handleAdd} />}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
