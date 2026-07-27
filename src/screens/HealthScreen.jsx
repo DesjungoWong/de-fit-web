@@ -1,114 +1,149 @@
-import { useState } from 'react'
-
-const periodData = {
-  D: {
-    bars: [40, 55, 70, 48, 62, 85, 100],
-    steps: '7,412', active: '418', sleep: '6h 42m',
-    hr: '61', weight: '79.8kg', cycling: '1 ride'
-  },
-  W: {
-    bars: [60, 75, 55, 80, 70, 90, 65],
-    steps: '52,884', active: '2,940', sleep: '6h 51m avg',
-    hr: '62', weight: '79.8kg', cycling: '2 rides'
-  },
-  M: {
-    bars: [70, 55, 80, 65, 72, 68, 90],
-    steps: '228k', active: '12.6k', sleep: '6h 48m avg',
-    hr: '63', weight: '80.2kg', cycling: '6 rides'
-  },
-  Y: {
-    bars: [50, 60, 55, 70, 65, 80, 75],
-    steps: '2.74M', active: '152k', sleep: '6h 44m avg',
-    hr: '64', weight: '82.1kg', cycling: '48 rides'
-  }
-}
-
-const cards = [
-  { id: 'steps',   icon: 'ti-shoe',    label: 'Steps',      sub: 'Goal 8,000' },
-  { id: 'active',  icon: 'ti-flame',   label: 'Active kcal', sub: '+12% vs avg' },
-  { id: 'sleep',   icon: 'ti-moon',    label: 'Sleep',      sub: 'Deep 1h 12m' },
-  { id: 'hr',      icon: 'ti-heart',   label: 'Resting HR', sub: '−2 vs 30d avg' },
-  { id: 'weight',  icon: 'ti-scale',   label: 'Weight',     sub: 'Target 76.0kg' },
-  { id: 'cycling', icon: 'ti-bike',    label: 'Cycling',    sub: '54km this wk' },
-]
+import React, { useState } from 'react'
+import { useDayStore } from '../store/dayStore'
 
 export default function HealthScreen() {
-  const [period, setPeriod] = useState('D')
-  const [drivePath, setDrivePath] = useState(localStorage.getItem('defit_drive_path') || '')
-  const d = periodData[period]
-  const maxBar = Math.max(...d.bars)
+  const { setHealth } = useDayStore()
+  const [metrics, setMetrics] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const ptBtn = (id, label) => (
-    <div onClick={() => setPeriod(id)} style={{
-      flex: 1, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 9, border: `1px solid ${period === id ? 'var(--accent)' : 'var(--line2)'}`,
-      cursor: 'pointer', borderRadius: 3, color: period === id ? 'var(--accent)' : 'var(--mut)',
-      background: period === id ? 'var(--accent-dim)' : 'transparent',
-      textTransform: 'uppercase', letterSpacing: '.04em'
-    }}>
-      {label}
-    </div>
-  )
+  async function handleFileSelect(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setLoading(true)
+    setError('')
+    try {
+      const ab = await file.arrayBuffer()
+
+      // Dynamic imports for JSZip and sql.js
+      const JSZip = (await import('jszip')).default
+      const initSqlJs = (await import('sql.js')).default
+
+      const zip = await JSZip.loadAsync(ab)
+      const dbFile = zip.file('health_connect_export.db')
+      if (!dbFile) throw new Error('health_connect_export.db not found in ZIP. Make sure you exported from Health Connect.')
+      const dbAb = await dbFile.async('arraybuffer')
+
+      const SQL = await initSqlJs({ locateFile: f => `/${f}` })
+      const db = new SQL.Database(new Uint8Array(dbAb))
+
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const todayMs = today.getTime()
+      const tomorrowMs = todayMs + 86400000
+
+      function q(sql, params = []) {
+        try { const r = db.exec(sql, params); return r[0]?.values || [] } catch { return [] }
+      }
+
+      // Steps today
+      const stepsRows = q(`SELECT SUM(count) FROM steps_record_table WHERE start_time >= ? AND start_time < ?`, [todayMs, tomorrowMs])
+      const steps = Math.round(stepsRows[0]?.[0] || 0)
+
+      // Latest resting HR
+      const hrRows = q(`SELECT beats_per_minute FROM resting_heart_rate_record_table ORDER BY time DESC LIMIT 1`)
+      const heartRate = hrRows[0]?.[0] || null
+
+      // Last sleep session
+      const sleepRows = q(`SELECT start_time, end_time FROM sleep_session_record_table ORDER BY start_time DESC LIMIT 1`)
+      let sleep = null
+      if (sleepRows[0]) {
+        sleep = ((sleepRows[0][1] - sleepRows[0][0]) / 3600000).toFixed(1)
+      }
+
+      // Latest weight (stored in kg)
+      const weightRows = q(`SELECT weight FROM weight_record_table ORDER BY time DESC LIMIT 1`)
+      const weight = weightRows[0]?.[0] ? parseFloat(weightRows[0][0]).toFixed(1) : null
+
+      // Active calories today (stored in joules, convert to kcal)
+      const calRows = q(`SELECT SUM(energy) FROM active_calories_burned_record_table WHERE start_time >= ? AND start_time < ?`, [todayMs, tomorrowMs])
+      const activeCalories = calRows[0]?.[0] ? Math.round(calRows[0][0] / 4184) : 0
+
+      // Hydration today (stored in litres)
+      const hydRows = q(`SELECT SUM(volume) FROM hydration_record_table WHERE start_time >= ? AND start_time < ?`, [todayMs, tomorrowMs])
+      const hydration = hydRows[0]?.[0] ? parseFloat(hydRows[0][0]).toFixed(2) : 0
+
+      db.close()
+
+      const result = { steps, heartRate, sleep, weight, activeCalories, hydration }
+      setMetrics(result)
+      setHealth(result)
+    } catch (err) {
+      setError('Could not read file: ' + err.message)
+    }
+    setLoading(false)
+  }
+
+  const score = metrics ? Math.min(100, Math.round(
+    ((Math.min(metrics.steps, 10000) / 10000) * 30) +
+    ((metrics.sleep ? Math.min(parseFloat(metrics.sleep), 8) / 8 : 0) * 30) +
+    ((metrics.heartRate ? (metrics.heartRate < 80 ? 1 : 0.6) : 0) * 20) +
+    20
+  )) : null
 
   return (
-    <div style={{ overflowY: 'auto', height: '100%' }}>
-      <div style={{ display: 'flex', gap: 4, padding: '12px 16px 8px' }}>
-        {ptBtn('D', 'Day')}
-        {ptBtn('W', 'Week')}
-        {ptBtn('M', 'Month')}
-        {ptBtn('Y', 'Year')}
-      </div>
-
-      {/* Trend bars */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 72, padding: '0 16px 6px' }}>
-        {d.bars.map((v, i) => (
-          <div key={i} style={{
-            flex: 1, borderRadius: '2px 2px 0 0',
-            height: `${(v / maxBar) * 100}%`,
-            background: v === maxBar ? 'var(--accent)' : 'var(--accent-dim)',
-            transition: 'height .4s'
-          }} />
-        ))}
-      </div>
-
-      {/* KPI grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, padding: '4px 16px 10px' }}>
-        {cards.map(c => (
-          <div key={c.id} style={{ background: 'var(--panel)', borderRadius: 3, padding: 10 }}>
-            <div style={{ fontSize: 8, color: 'var(--dim)', letterSpacing: '.08em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <i className={`ti ${c.icon}`} style={{ fontSize: 11 }} />
-              {c.label}
-            </div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, fontSize: 21, marginTop: 4, color: 'var(--txt)' }}>
-              {d[c.id]}
-            </div>
-            <div style={{ fontSize: 8, color: 'var(--dim)', marginTop: 2 }}>{c.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Import row */}
-      <div style={{
-        margin: '4px 16px 16px', background: 'var(--panel)',
-        border: '1px solid var(--line2)', borderRadius: 3, padding: 10,
-        display: 'flex', alignItems: 'center', gap: 8
-      }}>
-        <div style={{ flex: 1, fontSize: 9, color: 'var(--mut)', lineHeight: 1.5 }}>
-          Manual import · last synced 2 days ago<br />
-          Path: <span style={{ color: 'var(--accent)' }}>{drivePath || 'Not set'}</span>
+    <div style={{ padding: '14px 16px', paddingBottom: 20, overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+      {/* Import button */}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--panel)', borderRadius: 8, border: '0.5px dashed #333', cursor: 'pointer', marginBottom: 10 }}>
+        <span style={{ fontSize: 22 }}>🗜</span>
+        <div>
+          <div style={{ fontSize: 13, color: 'var(--text)' }}>Import Health Connect data</div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Select your health_connect_export.zip</div>
         </div>
-        <label style={{
-          background: 'var(--accent)', color: 'var(--bg)', border: 'none',
-          borderRadius: 3, padding: '6px 10px', fontSize: 9, letterSpacing: '.05em',
-          cursor: 'pointer', textTransform: 'uppercase', whiteSpace: 'nowrap'
-        }}>
-          Browse
-          <input type="file" style={{ display: 'none' }} onChange={e => {
-            const f = e.target.files?.[0]
-            if (f) { const p = f.name; setDrivePath(p); localStorage.setItem('defit_drive_path', p) }
-          }} />
-        </label>
-      </div>
+        <span style={{ marginLeft: 'auto', fontSize: 18, color: 'var(--dim)' }}>›</span>
+        <input type="file" accept=".zip" onChange={handleFileSelect} style={{ display: 'none' }} />
+      </label>
+
+      {loading && <div style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 0' }}>Reading Health Connect data…</div>}
+      {error && <div style={{ color: 'var(--red)', fontSize: 12, padding: '8px 0', background: 'var(--panel)', borderRadius: 6, padding: '10px 12px', marginBottom: 8 }}>{error}</div>}
+
+      {metrics && (
+        <>
+          <div style={{ background: 'var(--panel)', borderRadius: 7, padding: '8px 12px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>✓</span>
+            <span style={{ fontSize: 12, color: 'var(--green)' }}>Health data imported successfully</span>
+          </div>
+
+          <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Today's metrics</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 5, marginBottom: 10 }}>
+            {[
+              ['Steps', metrics.steps?.toLocaleString() || '—', '', 'var(--green)'],
+              ['Heart rate', metrics.heartRate || '—', metrics.heartRate ? 'bpm' : '', 'var(--red)'],
+              ['Sleep', metrics.sleep || '—', metrics.sleep ? 'hrs' : '', 'var(--softPurple)'],
+              ['Weight', metrics.weight || '—', metrics.weight ? 'kg' : '', 'var(--gold)'],
+              ['Active cal', metrics.activeCalories || '—', metrics.activeCalories ? 'kcal' : '', 'var(--purple)'],
+              ['Hydration', metrics.hydration || '—', metrics.hydration ? 'L' : '', 'var(--blue)'],
+            ].map(([l, v, u, c]) => (
+              <div key={l} style={{ background: 'var(--panel)', borderRadius: 7, padding: 10 }}>
+                <div style={{ fontSize: 8, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 3 }}>{l}</div>
+                <span style={{ fontFamily: 'Georgia,serif', fontSize: 18, fontWeight: 700, color: c }}>{v}</span>
+                {u && <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 2 }}>{u}</span>}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Health score</div>
+          <div style={{ background: 'var(--panel)', borderRadius: 8, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+              <span style={{ fontFamily: 'Georgia,serif', fontSize: 36, fontWeight: 700, color: 'var(--text)' }}>{score}</span>
+              <span style={{ fontSize: 12, color: score >= 70 ? 'var(--green)' : score >= 50 ? 'var(--gold)' : 'var(--red)' }}>
+                {score >= 70 ? 'Good' : score >= 50 ? 'Fair' : 'Needs attention'}
+              </span>
+            </div>
+            <div style={{ height: 4, borderRadius: 2, background: 'var(--border)' }}>
+              <div style={{ height: 4, borderRadius: 2, background: 'var(--green)', width: `${score}%`, transition: 'width .6s' }} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {!metrics && !loading && (
+        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>❤</div>
+          <div style={{ fontSize: 14, color: 'var(--muted)' }}>Import your Health Connect ZIP to see metrics</div>
+          <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 6 }}>Export from Android Health Connect app → Settings → Export data</div>
+        </div>
+      )}
     </div>
   )
 }

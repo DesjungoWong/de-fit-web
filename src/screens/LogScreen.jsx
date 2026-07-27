@@ -1,162 +1,245 @@
-import { useState } from 'react'
-import { estimateFood } from '../api/claude'
-import FoodRow from '../components/FoodRow'
+import React, { useState, useRef } from 'react'
+import { useDayStore } from '../store/dayStore'
+import { estimateFood, estimateFoodText } from '../api/claude'
+import { hpbFoods, categories } from '../data/hpbFoods'
 
-const CATALOG = [
-  { name: 'Chicken Rice', kcal: 480, protein: 28, carbs: 62, fat: 12 },
-  { name: 'Char Kway Teow', kcal: 744, protein: 22, carbs: 88, fat: 32 },
-  { name: 'Nasi Lemak', kcal: 520, protein: 18, carbs: 64, fat: 22 },
-  { name: 'Roti Prata (2 pcs)', kcal: 380, protein: 10, carbs: 52, fat: 14 },
-  { name: 'Ban Mian (dry)', kcal: 520, protein: 26, carbs: 70, fat: 14 },
-  { name: 'Wonton Mee', kcal: 440, protein: 20, carbs: 60, fat: 12 },
-  { name: 'Economy Rice (3 dishes)', kcal: 580, protein: 22, carbs: 74, fat: 20 },
-  { name: 'Milo Dinosaur', kcal: 220, protein: 4, carbs: 40, fat: 4 },
-]
+function ResultCard({ items, onAdd }) {
+  return (
+    <div style={{ background: 'var(--panel)', borderRadius: 8, padding: 12, marginTop: 10 }}>
+      <div style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Estimated nutrition</div>
+      {items.map((item, i) => (
+        <div key={i} style={{ marginBottom: i < items.length - 1 ? 10 : 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+            <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>{item.name}</span>
+            <span style={{ fontFamily: 'Georgia,serif', fontSize: 15, color: 'var(--purple)', fontWeight: 700 }}>{item.calories} kcal</span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>
+            P {item.protein}g · C {item.carbs}g · F {item.fat}g · {item.servingSize}
+          </div>
+          <button
+            onClick={() => onAdd(item)}
+            style={{ width: '100%', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 0', fontSize: 11, letterSpacing: '.06em', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            ADD TO LOG
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
 
-export default function LogScreen({ day, onLog }) {
-  const [tab, setTab] = useState('catalog')
+export default function LogScreen() {
+  const { entries, addEntry } = useDayStore()
+  const [subTab, setSubTab] = useState('search')
+  const [search, setSearch] = useState('')
+  const [category, setCategory] = useState('All')
+  const [aiMode, setAiMode] = useState('describe') // 'gallery' | 'describe'
   const [desc, setDesc] = useState('')
+  const [preview, setPreview] = useState(null)
+  const [imageDataUrl, setImageDataUrl] = useState(null)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const fileRef = useRef()
 
-  async function estimate(description, imageBase64 = null) {
+  const catLabels = { All: 'All', hawker: 'Hawker', noodles: 'Noodles', indian: 'Indian', malay: 'Malay', western: 'Western', japanese: 'Japanese', drinks: 'Drinks', snacks: 'Snacks' }
+
+  const filtered = hpbFoods.filter(f => {
+    const matchCat = category === 'All' || f.category === category
+    const matchSearch = !search || f.name.toLowerCase().includes(search.toLowerCase())
+    return matchCat && matchSearch
+  })
+
+  function handleAdd(item) {
+    addEntry({ ...item, meal: 'Meal' })
+    setResult(null)
+    setDesc('')
+    setPreview(null)
+    setImageDataUrl(null)
+  }
+
+  async function runEstimateText() {
+    if (!desc.trim()) return
     setLoading(true)
     setError('')
     setResult(null)
     try {
-      const r = await estimateFood(description, imageBase64)
-      if (r) setResult(r)
-      else setError('Could not parse estimate. Try rephrasing.')
+      const raw = await estimateFoodText(desc)
+      const cleaned = raw.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(cleaned)
+      setResult(Array.isArray(parsed) ? parsed : [parsed])
     } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
+      setError('Could not parse estimate. Try rephrasing. ' + e.message)
     }
+    setLoading(false)
   }
 
-  function handlePhoto(e) {
+  async function runEstimateImage() {
+    if (!imageDataUrl) return
+    setLoading(true)
+    setError('')
+    setResult(null)
+    try {
+      const raw = await estimateFood(imageDataUrl)
+      const cleaned = raw.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(cleaned)
+      setResult(Array.isArray(parsed) ? parsed : [parsed])
+    } catch (e) {
+      setError('Could not analyse image. ' + e.message)
+    }
+    setLoading(false)
+  }
+
+  function handleFileChange(e) {
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
     reader.onload = ev => {
-      const b64 = ev.target.result.split(',')[1]
-      estimate(desc || 'Estimate this meal', b64)
+      setImageDataUrl(ev.target.result)
+      setPreview(ev.target.result)
     }
     reader.readAsDataURL(file)
   }
 
-  const chip = (id, label) => (
-    <div onClick={() => setTab(id)} style={{
-      flex: 1, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 9, border: `1px solid ${tab === id ? 'var(--accent)' : 'var(--line2)'}`,
-      cursor: 'pointer', borderRadius: 3, color: tab === id ? 'var(--accent)' : 'var(--mut)',
-      background: tab === id ? 'var(--accent-dim)' : 'transparent',
-      letterSpacing: '.04em', textTransform: 'uppercase'
-    }}>
+  const TabBtn = ({ id, label }) => (
+    <div
+      onClick={() => setSubTab(id)}
+      style={{ flex: 1, textAlign: 'center', padding: '8px 0', fontSize: 11, cursor: 'pointer', borderBottom: `2px solid ${subTab === id ? 'var(--purple)' : 'transparent'}`, color: subTab === id ? 'var(--purple)' : 'var(--muted)', transition: 'color .15s' }}
+    >
       {label}
     </div>
   )
 
   return (
-    <div style={{ overflowY: 'auto', height: '100%' }}>
-      <div style={{ display: 'flex', gap: 4, padding: '12px 16px 8px' }}>
-        {chip('catalog', 'Catalog')}
-        {chip('describe', 'Describe / Photo')}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Sub-tabs */}
+      <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
+        <TabBtn id="search" label="Search" />
+        <TabBtn id="catalog" label="Catalog" />
+        <TabBtn id="recent" label="Recent" />
       </div>
 
-      {tab === 'catalog' && (
-        <>
-          <div style={{ fontSize: 8, color: 'var(--dim)', letterSpacing: '.16em', textTransform: 'uppercase', padding: '4px 16px 8px' }}>
-            Your usual — one tap to log
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, padding: '0 16px' }}>
-            {CATALOG.map(item => (
-              <div key={item.name} onClick={() => onLog(item)} style={{
-                background: 'var(--panel)', border: '1px solid var(--line)',
-                borderRadius: 3, padding: 9, cursor: 'pointer'
-              }}>
-                <div style={{ fontSize: 11, color: 'var(--txt)' }}>{item.name}</div>
-                <div style={{ fontSize: 9, color: 'var(--accent)', marginTop: 2 }}>{item.kcal} kcal</div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+
+        {(subTab === 'search' || subTab === 'catalog') && (
+          <>
+            {/* Search input */}
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search foods…"
+              style={{ width: '100%', background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: 'var(--text)', fontFamily: 'inherit', outline: 'none', marginBottom: 10, boxSizing: 'border-box' }}
+            />
+
+            {/* Category chips */}
+            <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 12, paddingBottom: 4 }}>
+              {Object.entries(catLabels).map(([id, label]) => (
+                <div
+                  key={id}
+                  onClick={() => setCategory(id)}
+                  style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 20, fontSize: 11, cursor: 'pointer', background: category === id ? 'var(--purple)' : 'var(--panel)', color: category === id ? '#fff' : 'var(--muted)', border: `0.5px solid ${category === id ? 'var(--purple)' : 'var(--border)'}`, transition: 'background .15s' }}
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+
+            {/* Food list */}
+            {filtered.map(f => (
+              <div
+                key={f.id}
+                style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: '0.5px solid var(--border)', cursor: 'pointer' }}
+                onClick={() => handleAdd(f)}
+              >
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: 'var(--text)' }}>{f.name}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{f.servingSize} · P {f.protein}g · C {f.carbs}g · F {f.fat}g</div>
+                </div>
+                <div style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: 'var(--purple)', marginLeft: 10 }}>{f.calories}</div>
               </div>
             ))}
-          </div>
-        </>
-      )}
+            {filtered.length === 0 && <div style={{ color: 'var(--dim)', fontSize: 13, paddingTop: 20 }}>No foods found. Try AI estimation below.</div>}
+          </>
+        )}
 
-      {tab === 'describe' && (
-        <div style={{ margin: '4px 16px', background: 'var(--panel)', border: '1px dashed var(--line2)', borderRadius: 3, padding: 10 }}>
-          <textarea
-            value={desc}
-            onChange={e => setDesc(e.target.value)}
-            placeholder="Describe the meal — e.g. 'plate of chicken rice, skin on, with soup'"
-            style={{
-              width: '100%', background: 'var(--bg2)', border: '1px solid var(--line2)',
-              borderRadius: 3, color: 'var(--txt)', fontSize: 11, padding: 8,
-              resize: 'none', outline: 'none', minHeight: 52
-            }}
-          />
-          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-            <label style={{
-              flex: 1, background: 'var(--panel)', border: '1px solid var(--line2)',
-              borderRadius: 3, height: 30, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', fontSize: 9, letterSpacing: '.06em',
-              color: 'var(--mut)', cursor: 'pointer', textTransform: 'uppercase'
-            }}>
-              📷 Camera
-              <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handlePhoto} />
-            </label>
-            <label style={{
-              flex: 1, background: 'var(--panel)', border: '1px solid var(--line2)',
-              borderRadius: 3, height: 30, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', fontSize: 9, letterSpacing: '.06em',
-              color: 'var(--mut)', cursor: 'pointer', textTransform: 'uppercase'
-            }}>
-              🖼 Gallery
-              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhoto} />
-            </label>
-            <button onClick={() => estimate(desc)} disabled={loading || !desc.trim()} style={{
-              flex: 1, background: 'var(--accent)', color: 'var(--bg)', border: 'none',
-              borderRadius: 3, height: 30, fontSize: 9, letterSpacing: '.06em',
-              cursor: 'pointer', textTransform: 'uppercase', opacity: loading ? .6 : 1
-            }}>
-              {loading ? '…' : 'Estimate'}
+        {subTab === 'recent' && (
+          <>
+            <div style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 10 }}>Recently logged</div>
+            {entries.length === 0 ? (
+              <div style={{ color: 'var(--dim)', fontSize: 13 }}>No items logged yet today.</div>
+            ) : [...entries].reverse().map((e, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '0.5px solid var(--border)' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: 'var(--text)' }}>{e.name}</div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>P {e.protein || 0}g · C {e.carbs || 0}g · F {e.fat || 0}g</div>
+                </div>
+                <div style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: 'var(--purple)' }}>{e.calories}</div>
+                <div
+                  onClick={() => addEntry(e)}
+                  style={{ fontSize: 11, color: 'var(--purple)', cursor: 'pointer', padding: '4px 8px', border: '0.5px solid var(--purple)', borderRadius: 4 }}
+                >
+                  +Add
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* AI Estimation sticky bottom panel */}
+      <div style={{ flexShrink: 0, borderTop: '0.5px solid var(--border)', background: 'var(--bg)', padding: '10px 16px 14px' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          {['gallery', 'describe'].map(m => (
+            <div
+              key={m}
+              onClick={() => setAiMode(m)}
+              style={{ flex: 1, textAlign: 'center', padding: '7px 0', borderRadius: 6, fontSize: 11, cursor: 'pointer', background: aiMode === m ? 'var(--purple)' : 'var(--panel)', color: aiMode === m ? '#fff' : 'var(--muted)', border: `0.5px solid ${aiMode === m ? 'var(--purple)' : 'var(--border)'}` }}
+            >
+              {m === 'gallery' ? '🖼 Gallery' : '✎ Describe'}
+            </div>
+          ))}
+        </div>
+
+        {aiMode === 'gallery' && (
+          <div>
+            {preview ? (
+              <div style={{ position: 'relative', marginBottom: 8 }}>
+                <img src={preview} alt="Food" style={{ width: '100%', maxHeight: 120, objectFit: 'cover', borderRadius: 8 }} />
+                <div onClick={() => { setPreview(null); setImageDataUrl(null); setResult(null) }} style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,.6)', color: '#fff', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 12 }}>✕</div>
+              </div>
+            ) : (
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, height: 60, borderRadius: 8, border: '0.5px dashed var(--border)', cursor: 'pointer', marginBottom: 8 }}>
+                <span style={{ fontSize: 20 }}>📷</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Tap to pick image</span>
+                <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} style={{ display: 'none' }} />
+              </label>
+            )}
+            {imageDataUrl && (
+              <button onClick={runEstimateImage} disabled={loading} style={{ width: '100%', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 0', fontSize: 11, cursor: 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit', letterSpacing: '.06em' }}>
+                {loading ? 'Analysing…' : 'ESTIMATE WITH AI'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {aiMode === 'describe' && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <textarea
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), runEstimateText())}
+              placeholder="Describe meal — e.g. chicken rice with skin, bowl of laksa"
+              style={{ flex: 1, background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 6, padding: '9px 12px', fontSize: 12, color: 'var(--text)', fontFamily: 'inherit', outline: 'none', resize: 'none', height: 60 }}
+            />
+            <button onClick={runEstimateText} disabled={loading || !desc.trim()} style={{ background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '0 14px', fontSize: 11, cursor: 'pointer', opacity: loading ? 0.6 : 1, fontFamily: 'inherit', letterSpacing: '.04em' }}>
+              {loading ? '…' : 'GO'}
             </button>
           </div>
-          {error && <div style={{ fontSize: 10, color: 'var(--danger)', marginTop: 6 }}>{error}</div>}
-          {result && (
-            <div style={{ marginTop: 8 }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: 12, color: 'var(--txt)', fontWeight: 500 }}>{result.name}</span>
-                <span style={{ fontSize: 7, color: 'var(--accent)', border: '1px solid var(--line2)', borderRadius: 3, padding: '1px 5px', marginLeft: 8, textTransform: 'uppercase' }}>
-                  {result.confidence}
-                </span>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--mut)' }}>
-                {result.kcal} kcal · P {result.protein}g · C {result.carbs}g · F {result.fat}g
-              </div>
-              <button onClick={() => { onLog(result); setResult(null); setDesc('') }} style={{
-                marginTop: 8, width: '100%', background: 'var(--accent)', color: 'var(--bg)',
-                border: 'none', borderRadius: 3, padding: '7px 0', fontSize: 10,
-                letterSpacing: '.06em', cursor: 'pointer', textTransform: 'uppercase'
-              }}>
-                Add to log
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+        )}
 
-      {/* Logged today */}
-      {day.items.length > 0 && (
-        <>
-          <div style={{ fontSize: 8, color: 'var(--dim)', letterSpacing: '.16em', textTransform: 'uppercase', padding: '14px 16px 4px' }}>
-            Logged today
-          </div>
-          {day.items.map((item, i) => <FoodRow key={i} item={item} />)}
-        </>
-      )}
-      <div style={{ height: 20 }} />
+        {error && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 6 }}>{error}</div>}
+        {result && <ResultCard items={result} onAdd={handleAdd} />}
+      </div>
     </div>
   )
 }

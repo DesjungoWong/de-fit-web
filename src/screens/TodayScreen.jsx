@@ -1,80 +1,120 @@
-import { useState, useEffect } from 'react'
-import CalorieRing from '../components/CalorieRing'
-import MacroGrid from '../components/MacroGrid'
-import FoodRow from '../components/FoodRow'
-import AdvisoryChat from '../components/AdvisoryChat'
+import React, { useState } from 'react'
+import { useDayStore } from '../store/dayStore'
 import { callClaude } from '../api/claude'
 
-export default function TodayScreen({ day }) {
-  const [advisory, setAdvisory] = useState('Loading your daily advisory…')
+function CalorieRing({ consumed, goal, exercisePct }) {
+  const r1 = 52, r2 = 40, cx = 63, cy = 63
+  const pct = Math.min(consumed / goal, 1)
+  const circ1 = 2 * Math.PI * r1
+  const circ2 = 2 * Math.PI * r2
+  return (
+    <svg viewBox="0 0 126 126" width="140" height="140">
+      <circle cx={cx} cy={cy} r={r1} fill="none" stroke="var(--border)" strokeWidth="9"/>
+      <circle cx={cx} cy={cy} r={r1} fill="none" stroke="var(--purple)" strokeWidth="9"
+        strokeDasharray={`${pct * circ1} ${circ1}`} strokeDashoffset={circ1 * 0.25} strokeLinecap="round"
+        style={{ transition: 'stroke-dasharray .6s' }}/>
+      <circle cx={cx} cy={cy} r={r2} fill="none" stroke="var(--border)" strokeWidth="7"/>
+      <circle cx={cx} cy={cy} r={r2} fill="none" stroke="var(--gold)" strokeWidth="7"
+        strokeDasharray={`${exercisePct * circ2} ${circ2}`} strokeDashoffset={circ2 * 0.25} strokeLinecap="round"
+        style={{ transition: 'stroke-dasharray .6s' }}/>
+      <text x={cx} y={cy - 6} textAnchor="middle" fill="var(--text)" fontSize="22" fontFamily="Georgia,serif" fontWeight="700">{consumed}</text>
+      <text x={cx} y={cy + 10} textAnchor="middle" fill="var(--muted)" fontSize="9">of {goal} kcal</text>
+    </svg>
+  )
+}
 
-  useEffect(() => {
-    const system = 'You are a concise health advisor for DE.Fit. Give a 2-sentence verdict on today\'s nutrition and health data. Be specific and direct. Singapore food context.'
-    const msg = `Calories logged: ${day.kcalLogged} of ${day.kcalTarget} kcal. Protein: ${Math.round(day.protein)}g, Carbs: ${Math.round(day.carbs)}g, Fat: ${Math.round(day.fat)}g. Steps: 7,412, Sleep: 6h 42m, RHR: 61 bpm. Fasting window closes at 8pm.`
-    callClaude([{ role: 'user', content: msg }], system)
-      .then(t => setAdvisory(t))
-      .catch(() => setAdvisory('Calories and macros are tracking to your target this week. Protein is a touch low — a high-protein dinner would close the gap before your fasting window closes at 8pm.'))
-  }, [day.kcalLogged])
+export default function TodayScreen() {
+  const { entries, calorieGoal, health } = useDayStore()
+  const [msg, setMsg] = useState('')
+  const [reply, setReply] = useState('Ask me anything about your health today.')
+  const [loading, setLoading] = useState(false)
 
-  const date = new Date().toLocaleDateString('en-SG', { weekday: 'short', month: 'short', day: 'numeric' })
+  const totalCal = entries.reduce((s, e) => s + (e.calories || 0), 0)
+  const totalProtein = entries.reduce((s, e) => s + (e.protein || 0), 0)
+  const totalCarbs = entries.reduce((s, e) => s + (e.carbs || 0), 0)
+  const totalFat = entries.reduce((s, e) => s + (e.fat || 0), 0)
+  const exercisePct = Math.min((health?.activeCalories || 0) / 500, 1)
+
+  async function sendMsg() {
+    if (!msg.trim()) return
+    setLoading(true)
+    const mealSummary = entries.length
+      ? entries.map(e => `${e.name} (${e.calories}kcal)`).join(', ')
+      : 'nothing logged yet'
+    const system = `You are DE.Fit's AI health advisor. Be concise — 2-3 sentences max. Today's data: Calories eaten: ${totalCal}/${calorieGoal}kcal. Meals: ${mealSummary}. Steps: ${health?.steps || 'unknown'}. Sleep: ${health?.sleep || 'unknown'}hrs.`
+    try {
+      const r = await callClaude([{ role: 'user', content: msg }], system)
+      setReply(r || 'Could not reach AI advisor.')
+    } catch (e) {
+      setReply('Error: ' + e.message)
+    }
+    setMsg('')
+    setLoading(false)
+  }
+
+  const now = new Date()
+  const dateStr = now.toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'short' })
 
   return (
-    <div style={{ overflowY: 'auto', height: '100%' }}>
-      {/* Section label */}
-      <div style={{ fontSize: 9, color: 'var(--dim)', letterSpacing: '.16em', textTransform: 'uppercase', padding: '12px 16px 4px' }}>
-        {date}
+    <div style={{ padding: '14px 16px', paddingBottom: 20 }}>
+      <div style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 12 }}>{dateStr}</div>
+
+      {/* Calorie Ring */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+        <CalorieRing consumed={totalCal} goal={calorieGoal} exercisePct={exercisePct} />
       </div>
 
-      <CalorieRing logged={day.kcalLogged} target={day.kcalTarget} />
-      <MacroGrid protein={day.protein} carbs={day.carbs} fat={day.fat} />
-
-      {/* Health metrics */}
-      <div style={{ fontSize: 8, color: 'var(--dim)', letterSpacing: '.16em', textTransform: 'uppercase', padding: '10px 16px 6px' }}>
-        Synced from Google Health
-      </div>
-      <div style={{ display: 'flex', gap: 1, margin: '0 16px 8px' }}>
+      {/* Macros */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6, marginBottom: 14 }}>
         {[
-          { icon: 'ti-shoe',  label: 'Steps', val: '7,412' },
-          { icon: 'ti-moon',  label: 'Sleep',  val: '6h 42m' },
-          { icon: 'ti-heart', label: 'RHR',    val: '61' },
-        ].map(h => (
-          <div key={h.label} style={{ flex: 1, background: 'var(--panel)', padding: 9, borderRadius: 2 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--dim)', fontSize: 9 }}>
-              <i className={`ti ${h.icon}`} style={{ fontSize: 11 }} />
-              {h.label}
-              <span style={{ fontSize: 7, color: 'var(--ocean)', border: '1px solid var(--line2)', borderRadius: 3, padding: '1px 4px', marginLeft: 'auto' }}>GH</span>
-            </div>
-            <div style={{ fontFamily: "'Cormorant Garamond', serif", fontWeight: 600, fontSize: 16, marginTop: 2, color: 'var(--txt)' }}>
-              {h.val}
-            </div>
+          ['Protein', totalProtein, 'g', 'var(--gold)', totalProtein / 150],
+          ['Carbs', totalCarbs, 'g', 'var(--purple)', totalCarbs / 250],
+          ['Fat', totalFat, 'g', 'var(--softPurple)', totalFat / 65],
+        ].map(([l, v, u, c, pct]) => (
+          <div key={l} style={{ background: 'var(--panel)', borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
+            <div style={{ fontFamily: 'Georgia,serif', fontSize: 16, fontWeight: 700, color: c }}>{Math.round(v)}{u}</div>
+            <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--muted)', marginTop: 2 }}>{l}</div>
+            <div style={{ height: 2, borderRadius: 1, background: c, width: `${Math.min(pct, 1) * 100}%`, marginTop: 5, transition: 'width .4s' }} />
           </div>
         ))}
       </div>
 
-      {/* Advisory */}
-      <div style={{
-        margin: '8px 16px', background: 'var(--accent-dim)',
-        border: '1px solid var(--line2)', borderRadius: 3, padding: 10
-      }}>
-        <div style={{ fontSize: 8, letterSpacing: '.1em', color: 'var(--accent)', textTransform: 'uppercase', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 5 }}>
-          ✧ AI ADVISORY
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--mut)', lineHeight: 1.6 }}>{advisory}</div>
-      </div>
-
-      <AdvisoryChat day={day} />
-
-      {/* Logged items */}
-      {day.items.length > 0 && (
-        <>
-          <div style={{ fontSize: 8, color: 'var(--dim)', letterSpacing: '.16em', textTransform: 'uppercase', padding: '10px 16px 4px' }}>
-            Logged today
+      {/* Today's Meals */}
+      <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Today's meals</div>
+      {entries.length === 0 ? (
+        <div style={{ color: 'var(--dim)', fontSize: 13, padding: '12px 0' }}>No meals logged yet. Go to Log to add food.</div>
+      ) : entries.slice(-5).map((e, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '0.5px solid var(--border)' }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: i % 2 === 0 ? 'var(--purple)' : 'var(--gold)', flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, color: 'var(--text)' }}>{e.name}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{e.meal || 'Meal'}</div>
           </div>
-          {day.items.map((item, i) => <FoodRow key={i} item={item} />)}
-        </>
-      )}
+          <div style={{ fontFamily: 'Georgia,serif', fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{e.calories}</div>
+        </div>
+      ))}
 
-      <div style={{ height: 20 }} />
+      {/* AI Advisor */}
+      <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)', marginTop: 16, marginBottom: 8 }}>AI health advisor</div>
+      <div style={{ background: 'var(--panel)', borderRadius: 8, padding: '12px' }}>
+        <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, marginBottom: 10 }}>{reply}</div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={msg}
+            onChange={e => setMsg(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && sendMsg()}
+            placeholder="Ask your advisor…"
+            style={{ flex: 1, background: '#1a1a1a', border: '0.5px solid var(--border)', borderRadius: 6, padding: '9px 12px', fontSize: 13, color: 'var(--text)', fontFamily: 'inherit', outline: 'none' }}
+          />
+          <button
+            onClick={sendMsg}
+            disabled={loading}
+            style={{ background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 16px', fontSize: 11, fontFamily: 'inherit', letterSpacing: '.06em', cursor: 'pointer', opacity: loading ? 0.6 : 1 }}
+          >
+            {loading ? '…' : 'SEND'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -1,33 +1,79 @@
-const KEY = 'defit_day_' + new Date().toISOString().slice(0, 10)
-const defaults = { kcalTarget: 1780, kcalLogged: 0, protein: 0, carbs: 0, fat: 0, items: [] }
+import { useState, useEffect, useCallback } from 'react'
 
-export function getDay() {
-  try { return JSON.parse(localStorage.getItem(KEY)) || { ...defaults } }
-  catch { return { ...defaults } }
-}
+const DAY_KEY = () => 'defit_day_' + new Date().toISOString().slice(0, 10)
+const SETTINGS_KEY = 'defit_settings'
+const HEALTH_KEY = 'defit_health'
 
-export function saveDay(state) {
-  try { localStorage.setItem(KEY, JSON.stringify(state)) } catch {}
-}
-
-export function logItem(state, item) {
-  const next = {
-    ...state,
-    kcalLogged: state.kcalLogged + (item.kcal || 0),
-    protein: state.protein + (item.protein || 0),
-    carbs: state.carbs + (item.carbs || 0),
-    fat: state.fat + (item.fat || 0),
-    items: [...state.items, { ...item, loggedAt: Date.now() }]
+function loadDay() {
+  try {
+    return JSON.parse(localStorage.getItem(DAY_KEY())) || { entries: [], calorieGoal: 1800 }
+  } catch {
+    return { entries: [], calorieGoal: 1800 }
   }
-  saveDay(next)
-  return next
 }
 
+function loadHealth() {
+  try {
+    return JSON.parse(localStorage.getItem(HEALTH_KEY)) || {}
+  } catch {
+    return {}
+  }
+}
+
+// Simple global state via module-level variables + subscriber pattern
+let _dayState = loadDay()
+let _healthState = loadHealth()
+let _listeners = []
+
+function notify() {
+  _listeners.forEach(fn => fn())
+}
+
+export function useDayStore() {
+  const [, forceUpdate] = useState(0)
+
+  useEffect(() => {
+    const listener = () => forceUpdate(n => n + 1)
+    _listeners.push(listener)
+    return () => { _listeners = _listeners.filter(l => l !== listener) }
+  }, [])
+
+  const addEntry = useCallback((entry) => {
+    _dayState = {
+      ..._dayState,
+      entries: [..._dayState.entries, { ...entry, loggedAt: Date.now() }]
+    }
+    localStorage.setItem(DAY_KEY(), JSON.stringify(_dayState))
+    notify()
+  }, [])
+
+  const setHealth = useCallback((h) => {
+    _healthState = { ..._healthState, ...h }
+    localStorage.setItem(HEALTH_KEY, JSON.stringify(_healthState))
+    notify()
+  }, [])
+
+  const setCalorieGoal = useCallback((goal) => {
+    _dayState = { ..._dayState, calorieGoal: goal }
+    localStorage.setItem(DAY_KEY(), JSON.stringify(_dayState))
+    notify()
+  }, [])
+
+  return {
+    entries: _dayState.entries || [],
+    calorieGoal: _dayState.calorieGoal || 1800,
+    health: _healthState,
+    addEntry,
+    setHealth,
+    setCalorieGoal
+  }
+}
+
+// Legacy helpers kept for Settings compatibility
 export function getSettings() {
-  try { return JSON.parse(localStorage.getItem('defit_settings')) || {} }
-  catch { return {} }
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {} } catch { return {} }
 }
 
 export function saveSettings(s) {
-  try { localStorage.setItem('defit_settings', JSON.stringify(s)) } catch {}
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)) } catch {}
 }
