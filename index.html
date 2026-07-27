@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DE.Fit</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body, #root { height: 100%; }
+      body {
+        font-family: 'DM Sans', sans-serif;
+        font-weight: 300;
+        background: var(--bg);
+        color: var(--txt);
+        transition: background .25s, color .25s;
+        -webkit-font-smoothing: antialiased;
+      }
+      h1, h2, h3, .disp { font-family: 'Cormorant Garamond', serif; }
+      input, textarea, button { font-family: 'DM Sans', sans-serif; }
+      ::-webkit-scrollbar { display: none; }
+      scrollbar-width: none;
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
