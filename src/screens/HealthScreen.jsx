@@ -1,43 +1,14 @@
 import React, { useState } from 'react'
 import { useDayStore } from '../store/dayStore'
 import { parseHealthConnect } from '../lib/healthParser'
+import JSZip from 'jszip'
 
 async function extractDbFromZip(zipFile) {
-  const readSlice = async (offset, length) => {
-    const ab = await zipFile.slice(offset, offset + length).arrayBuffer()
-    return new DataView(ab)
-  }
-
-  const hdr = await readSlice(0, 4)
-  if (hdr.getUint32(0, true) !== 0x04034b50) throw new Error('Not a valid ZIP file')
-
-  const meta = await readSlice(0, 30)
-  const method = meta.getUint16(8, true)
-  const compressedSize = meta.getUint32(18, true)
-  const uncompressedSize = meta.getUint32(22, true)
-  const fnLen = meta.getUint16(26, true)
-  const exLen = meta.getUint16(28, true)
-  const dataOffset = 30 + fnLen + exLen
-
-  if (method === 0) {
-    return zipFile.slice(dataOffset, dataOffset + uncompressedSize)
-  }
-  if (method === 8) {
-    const compressedAb = await zipFile.slice(dataOffset, dataOffset + compressedSize).arrayBuffer()
-    const ds = new DecompressionStream('deflate-raw')
-    const writer = ds.writable.getWriter()
-    writer.write(new Uint8Array(compressedAb))
-    writer.close()
-    const chunks = []
-    const reader = ds.readable.getReader()
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      chunks.push(value)
-    }
-    return new Blob(chunks)
-  }
-  throw new Error(`Unsupported ZIP compression method: ${method}`)
+  const zip = await JSZip.loadAsync(zipFile)
+  const entry = zip.file('health_connect_export.db')
+  if (!entry) throw new Error('health_connect_export.db not found in ZIP')
+  // Get as Blob so our lazy parser can use .slice() without loading all 171MB at once
+  return entry.async('blob')
 }
 
 export default function HealthScreen() {
