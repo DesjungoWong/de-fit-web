@@ -95,7 +95,7 @@ export default function HealthScreen() {
       </label>
 
       {loading && <div style={{ color: 'var(--muted)', fontSize: 13, padding: '8px 0' }}>Reading Health Connect data…</div>}
-      {error && <div style={{ color: 'var(--red)', fontSize: 12, padding: '8px 0', background: 'var(--panel)', borderRadius: 6, padding: '10px 12px', marginBottom: 8 }}>{error}</div>}
+      {error && <div style={{ color: 'var(--red)', fontSize: 12, background: 'var(--panel)', borderRadius: 6, padding: '10px 12px', marginBottom: 8 }}>{error}</div>}
 
       {metrics && (
         <>
