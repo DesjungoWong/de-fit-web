@@ -1,22 +1,7 @@
-function getKey() {
-  return (
-    import.meta.env.VITE_CLAUDE_API_KEY ||
-    localStorage.getItem('claude_api_key') ||
-    ''
-  ).replace(/[^\x20-\x7E]/g, '').trim()
-}
-
 export async function callClaude(messages, system = '', model = 'claude-haiku-4-5-20251001') {
-  const key = getKey()
-  if (!key) throw new Error('No API key set. Add one in Settings.')
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('/api/claude', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-allow-browser': 'true'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model, max_tokens: 512, system, messages })
   })
   const data = await res.json()
