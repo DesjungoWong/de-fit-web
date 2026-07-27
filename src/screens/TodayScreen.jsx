@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { useDayStore } from '../store/dayStore'
 import { callClaude } from '../api/claude'
 
@@ -23,23 +23,102 @@ function CalorieRing({ consumed, goal, exercisePct }) {
   )
 }
 
+// Swipeable meal row with delete + pax divider
+function MealRow({ entry, onDelete, onPaxChange, index }) {
+  const [swipeX, setSwipeX] = useState(0)
+  const [swiping, setSwiping] = useState(false)
+  const startX = useRef(0)
+  const pax = entry.pax || 1
+  const eff = v => Math.round((v || 0) / pax)
+
+  function onTouchStart(e) {
+    startX.current = e.touches[0].clientX
+    setSwiping(true)
+  }
+  function onTouchMove(e) {
+    const dx = Math.min(0, Math.max(-90, e.touches[0].clientX - startX.current))
+    setSwipeX(dx)
+  }
+  function onTouchEnd() {
+    setSwiping(false)
+    if (swipeX < -45) setSwipeX(-72)
+    else setSwipeX(0)
+  }
+
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', borderBottom: '0.5px solid var(--border)' }}>
+      {/* Delete button behind */}
+      <div
+        onClick={() => onDelete(entry.id)}
+        style={{
+          position: 'absolute', right: 0, top: 0, bottom: 0, width: 72,
+          background: '#FF3B30', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer'
+        }}
+      >
+        <span style={{ color: '#fff', fontSize: 11, fontWeight: 600 }}>Delete</span>
+      </div>
+
+      {/* Row content */}
+      <div
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0',
+          background: 'var(--bg)',
+          transform: `translateX(${swipeX}px)`,
+          transition: swiping ? 'none' : 'transform .25s ease'
+        }}
+      >
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: index % 2 === 0 ? 'var(--purple)' : 'var(--gold)', flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{entry.name}</div>
+          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{entry.meal || 'Meal'}{pax > 1 ? ` · ÷${pax} pax` : ''}</div>
+        </div>
+
+        {/* Pax stepper */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+          <button
+            onClick={() => onPaxChange(entry.id, Math.max(1, pax - 1))}
+            style={{ background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: '4px 0 0 4px', color: 'var(--text)', width: 22, height: 22, fontSize: 13, cursor: 'pointer', lineHeight: 1, padding: 0 }}
+          >−</button>
+          <div style={{ background: 'var(--panel)', border: '0.5px solid var(--border)', borderLeft: 'none', borderRight: 'none', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>{pax}</span>
+          </div>
+          <button
+            onClick={() => onPaxChange(entry.id, Math.min(5, pax + 1))}
+            style={{ background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: '0 4px 4px 0', color: 'var(--text)', width: 22, height: 22, fontSize: 13, cursor: 'pointer', lineHeight: 1, padding: 0 }}
+          >+</button>
+        </div>
+
+        <div style={{ fontFamily: 'Georgia,serif', fontSize: 14, fontWeight: 600, color: 'var(--text)', minWidth: 36, textAlign: 'right' }}>{eff(entry.calories)}</div>
+      </div>
+    </div>
+  )
+}
+
 export default function TodayScreen() {
-  const { entries, calorieGoal, health } = useDayStore()
+  const { entries, calorieGoal, health, removeEntry, updateEntry } = useDayStore()
   const [msg, setMsg] = useState('')
   const [reply, setReply] = useState('Ask me anything about your health today.')
   const [loading, setLoading] = useState(false)
 
-  const totalCal = entries.reduce((s, e) => s + (e.calories || 0), 0)
-  const totalProtein = entries.reduce((s, e) => s + (e.protein || 0), 0)
-  const totalCarbs = entries.reduce((s, e) => s + (e.carbs || 0), 0)
-  const totalFat = entries.reduce((s, e) => s + (e.fat || 0), 0)
+  // Effective calories/macros accounting for pax dividers
+  const effCal = e => Math.round((e.calories || 0) / (e.pax || 1))
+  const effMacro = (e, k) => Math.round((e[k] || 0) / (e.pax || 1))
+
+  const totalCal = entries.reduce((s, e) => s + effCal(e), 0)
+  const totalProtein = entries.reduce((s, e) => s + effMacro(e, 'protein'), 0)
+  const totalCarbs = entries.reduce((s, e) => s + effMacro(e, 'carbs'), 0)
+  const totalFat = entries.reduce((s, e) => s + effMacro(e, 'fat'), 0)
   const exercisePct = Math.min((health?.activeCalories || 0) / 500, 1)
 
   async function sendMsg() {
     if (!msg.trim()) return
     setLoading(true)
     const mealSummary = entries.length
-      ? entries.map(e => `${e.name} (${e.calories}kcal)`).join(', ')
+      ? entries.map(e => `${e.name} (${effCal(e)}kcal${e.pax > 1 ? ` ÷${e.pax}pax` : ''})`).join(', ')
       : 'nothing logged yet'
     const system = `You are DE.Fit's AI health advisor. Be concise — 2-3 sentences max. Today's data: Calories eaten: ${totalCal}/${calorieGoal}kcal. Meals: ${mealSummary}. Steps: ${health?.steps || 'unknown'}. Sleep: ${health?.sleep || 'unknown'}hrs.`
     try {
@@ -80,18 +159,21 @@ export default function TodayScreen() {
       </div>
 
       {/* Today's Meals */}
-      <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Today's meals</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)' }}>Today's meals</div>
+        {entries.length > 0 && <div style={{ fontSize: 9, color: 'var(--dim)' }}>← swipe to delete · ±pax</div>}
+      </div>
+
       {entries.length === 0 ? (
         <div style={{ color: 'var(--dim)', fontSize: 13, padding: '12px 0' }}>No meals logged yet. Go to Log to add food.</div>
-      ) : entries.slice(-5).map((e, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '0.5px solid var(--border)' }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: i % 2 === 0 ? 'var(--purple)' : 'var(--gold)', flexShrink: 0 }} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, color: 'var(--text)' }}>{e.name}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>{e.meal || 'Meal'}</div>
-          </div>
-          <div style={{ fontFamily: 'Georgia,serif', fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{e.calories}</div>
-        </div>
+      ) : entries.map((e, i) => (
+        <MealRow
+          key={e.id || i}
+          entry={e}
+          index={i}
+          onDelete={id => removeEntry(id)}
+          onPaxChange={(id, pax) => updateEntry(id, { pax })}
+        />
       ))}
 
       {/* AI Advisor */}

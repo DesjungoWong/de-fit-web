@@ -108,8 +108,9 @@ function readSerial(dv, offset, serialType) {
 }
 
 async function getTableRootPages(file, pageSize, tableNames) {
-  const page1 = await readPage(file, 1, pageSize)
-  const cells = parseLeafCells(page1, 1, pageSize)
+  // sqlite_master lives at page 1; for large DBs it spans multiple pages
+  // so we must traverse the full B-tree, not just read page 1 as a leaf
+  const cells = await traverseBtree(file, 1, pageSize)
   const roots = {}
   for (const { values } of cells) {
     if (values[0] === 'table' && tableNames.includes(values[1])) {

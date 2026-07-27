@@ -41,8 +41,20 @@ export function useDayStore() {
   const addEntry = useCallback((entry) => {
     _dayState = {
       ..._dayState,
-      entries: [..._dayState.entries, { ...entry, loggedAt: Date.now() }]
+      entries: [..._dayState.entries, { ...entry, id: Date.now(), pax: 1, loggedAt: Date.now() }]
     }
+    localStorage.setItem(DAY_KEY(), JSON.stringify(_dayState))
+    notify()
+  }, [])
+
+  const removeEntry = useCallback((id) => {
+    _dayState = { ..._dayState, entries: _dayState.entries.filter(e => e.id !== id) }
+    localStorage.setItem(DAY_KEY(), JSON.stringify(_dayState))
+    notify()
+  }, [])
+
+  const updateEntry = useCallback((id, patch) => {
+    _dayState = { ..._dayState, entries: _dayState.entries.map(e => e.id === id ? { ...e, ...patch } : e) }
     localStorage.setItem(DAY_KEY(), JSON.stringify(_dayState))
     notify()
   }, [])
@@ -64,6 +76,8 @@ export function useDayStore() {
     calorieGoal: _dayState.calorieGoal || 1800,
     health: _healthState,
     addEntry,
+    removeEntry,
+    updateEntry,
     setHealth,
     setCalorieGoal
   }
