@@ -3,8 +3,8 @@ import { useDayStore } from '../store/dayStore'
 import { hasEnvKey } from '../api/claude'
 import { getSettings, saveSettings } from '../store/dayStore'
 
-export default function SettingsScreen({ isDark, onToggle }) {
-  const { calorieGoal, setCalorieGoal } = useDayStore()
+export default function SettingsScreen({ isDark, onToggle, onNavigate }) {
+  const { calorieGoal, setCalorieGoal, health } = useDayStore()
   const s0 = getSettings()
   const [kcalTarget, setKcalTarget] = useState(calorieGoal)
   const [fasting, setFasting] = useState(s0.fasting ?? false)
@@ -101,19 +101,24 @@ export default function SettingsScreen({ isDark, onToggle }) {
 
       <SectionHeader title="Data" />
 
-      <Row
-        label="Google Drive export path"
-        sub="Backend will poll this daily"
-        right={
-          <input
-            type="text"
-            value={drivePath}
-            onChange={e => { setDrivePath(e.target.value); persist({ drivePath: e.target.value }) }}
-            placeholder="/Health Exports/"
-            style={{ background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '7px 10px', fontSize: 11, width: 120, outline: 'none', fontFamily: 'inherit' }}
-          />
-        }
-      />
+      <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
+        <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 3 }}>Health Connect import</div>
+        <div style={{ fontSize: 10, color: 'var(--dim)', marginBottom: 10 }}>
+          {health?.importedAt
+            ? `Last import: ${new Date(health.importedAt).toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+            : 'No data imported yet'}
+        </div>
+        <div
+          onClick={() => onNavigate?.('health')}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'var(--purple)', color: '#fff', borderRadius: 6,
+            padding: '7px 16px', fontSize: 11, cursor: 'pointer', fontWeight: 500
+          }}
+        >
+          ↑ Import now
+        </div>
+      </div>
 
       <SectionHeader title="About" />
 

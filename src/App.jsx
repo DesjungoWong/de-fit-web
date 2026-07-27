@@ -54,7 +54,7 @@ export default function App() {
 
       {/* Screen content */}
       <div style={{ flex: 1, overflow: 'auto' }}>
-        <Screen isDark={isDark} onToggle={() => setIsDark(d => !d)} />
+        <Screen isDark={isDark} onToggle={() => setIsDark(d => !d)} onNavigate={setTab} />
       </div>
 
       {/* Bottom nav */}

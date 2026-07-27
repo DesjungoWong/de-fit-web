@@ -7,122 +7,192 @@ async function extractDbFromZip(zipFile) {
   const zip = await JSZip.loadAsync(zipFile)
   const entry = zip.file('health_connect_export.db')
   if (!entry) throw new Error('health_connect_export.db not found in ZIP')
-  // Get as Blob so our lazy parser can use .slice() without loading all 171MB at once
   return entry.async('blob')
 }
 
+const DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+
+function BarChart({ data, color = 'var(--purple)' }) {
+  const max = Math.max(...data.map(d => d.value), 1)
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 48 }}>
+      {data.map((d, i) => (
+        <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+          <div style={{
+            width: '100%', borderRadius: 3,
+            height: Math.max(3, Math.round((d.value / max) * 40)),
+            background: d.isToday ? color : `${color}55`,
+            transition: 'height .4s'
+          }} />
+          <span style={{ fontSize: 8, color: 'var(--dim)' }}>{d.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function MetricTile({ label, value, unit, color, sub }) {
+  return (
+    <div style={{ background: 'var(--panel)', borderRadius: 10, padding: '10px 12px' }}>
+      <div style={{ fontSize: 8, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 4 }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+        <span style={{ fontFamily: 'Georgia,serif', fontSize: 22, fontWeight: 700, color: value === '—' ? 'var(--dim)' : color }}>{value}</span>
+        {unit && value !== '—' && <span style={{ fontSize: 9, color: 'var(--muted)' }}>{unit}</span>}
+      </div>
+      {sub && <div style={{ fontSize: 9, color: 'var(--dim)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  )
+}
+
 export default function HealthScreen() {
-  const { setHealth } = useDayStore()
-  const [metrics, setMetrics] = useState(null)
+  const { health, setHealth } = useDayStore()
   const [loading, setLoading] = useState(false)
   const [loadingMsg, setLoadingMsg] = useState('')
   const [error, setError] = useState('')
 
+  const m = health || {}
+  const lastImport = m.importedAt ? new Date(m.importedAt) : null
+  const lastImportStr = lastImport
+    ? lastImport.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null
+
   async function handleFileSelect(e) {
     const file = e.target.files[0]
     if (!file) return
-    setLoading(true)
-    setError('')
-    setMetrics(null)
-
+    setLoading(true); setError('')
     try {
       let dbBlob = file
       if (file.name.endsWith('.zip')) {
-        setLoadingMsg('Extracting ZIP… (this may take 10–20s on mobile)')
+        setLoadingMsg('Extracting ZIP… (10–20s on mobile)')
         dbBlob = await extractDbFromZip(file)
       }
       setLoadingMsg('Reading health data…')
       const result = await parseHealthConnect(dbBlob)
-      setMetrics(result)
       setHealth(result)
     } catch (err) {
       setError('Could not read file: ' + err.message)
     }
-    setLoading(false)
-    setLoadingMsg('')
+    setLoading(false); setLoadingMsg('')
+    e.target.value = ''
   }
 
-  const score = metrics ? Math.min(100, Math.round(
-    ((Math.min(metrics.steps || 0, 10000) / 10000) * 30) +
-    ((metrics.sleep ? Math.min(parseFloat(metrics.sleep), 8) / 8 : 0) * 30) +
-    ((metrics.heartRate ? (metrics.heartRate < 80 ? 1 : 0.6) : 0) * 20) +
+  // Score: steps 30%, sleep 30%, HR 20%, base 20%
+  const score = (m.steps || m.heartRate || m.sleep || m.weight) ? Math.min(100, Math.round(
+    ((Math.min(m.steps || 0, 10000) / 10000) * 30) +
+    ((m.sleep ? Math.min(parseFloat(m.sleep), 8) / 8 : 0) * 30) +
+    ((m.heartRate ? (m.heartRate < 80 ? 1 : 0.6) : 0) * 20) +
     20
   )) : null
 
-  const s = (v, fallback = '—') => (v !== null && v !== undefined && v !== 0 && v !== '0' && v !== '0.00') ? v : fallback
+  const s = v => (v !== null && v !== undefined && v !== 0 && v !== '0' && v !== '0.00') ? String(v) : '—'
+
+  // Build 7-day bar chart data
+  const DAY_MS = 86400000
+  const todayDs = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime() })()
+  const chartData = Array.from({ length: 7 }, (_, i) => {
+    const ds = todayDs - (6 - i) * DAY_MS
+    const bucket = m.last7?.find(b => b.dayStart === ds)
+    const d = new Date(ds)
+    return {
+      label: DAYS[d.getDay() === 0 ? 6 : d.getDay() - 1],
+      value: bucket?.steps || 0,
+      isToday: ds === todayDs
+    }
+  })
+
+  const hasData = !!(m.steps || m.heartRate || m.sleep || m.weight)
 
   return (
-    <div style={{ padding: '14px 16px 20px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: 'var(--panel)', borderRadius: 8, border: '0.5px dashed var(--border)', cursor: 'pointer', marginBottom: 10 }}>
-        <span style={{ fontSize: 22 }}>🗜</span>
+    <div style={{ overflowY: 'auto', height: '100%', padding: '12px 14px 24px', boxSizing: 'border-box' }}>
+
+      {/* Import row */}
+      <label style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        background: 'var(--panel)', borderRadius: 8,
+        border: '0.5px dashed var(--border)', padding: '10px 12px',
+        cursor: loading ? 'not-allowed' : 'pointer', marginBottom: 8, opacity: loading ? 0.6 : 1
+      }}>
+        <span style={{ fontSize: 18 }}>🗜</span>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, color: 'var(--text)' }}>Import Health Connect data</div>
-          <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>Select health_connect_export.zip or .db</div>
+          <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>
+            {loading ? loadingMsg || 'Processing…' : 'Import Health Connect'}
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--dim)', marginTop: 1 }}>
+            {lastImportStr ? `Last import: ${lastImportStr}` : 'Select health_connect_export.zip or .db'}
+          </div>
         </div>
-        <span style={{ fontSize: 18, color: 'var(--dim)' }}>›</span>
-        <input type="file" accept=".zip,.db" onChange={handleFileSelect} style={{ display: 'none' }} />
+        {!loading && <span style={{ fontSize: 14, color: 'var(--purple)' }}>↑</span>}
+        <input type="file" accept=".zip,.db" onChange={handleFileSelect} disabled={loading} style={{ display: 'none' }} />
       </label>
 
-      {loading && (
-        <div style={{ background: 'var(--panel)', borderRadius: 7, padding: '10px 14px', marginBottom: 10, fontSize: 13, color: 'var(--muted)' }}>
-          {loadingMsg || 'Processing…'}
-        </div>
-      )}
-
       {error && (
-        <div style={{ color: 'var(--red)', fontSize: 12, background: 'var(--panel)', borderRadius: 6, padding: '10px 12px', marginBottom: 8 }}>
+        <div style={{ color: 'var(--red)', fontSize: 11, background: 'var(--panel)', borderRadius: 6, padding: '8px 12px', marginBottom: 8 }}>
           {error}
         </div>
       )}
 
-      {metrics && (
-        <>
-          <div style={{ background: 'var(--panel)', borderRadius: 7, padding: '8px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ color: 'var(--green)', fontSize: 16 }}>✓</span>
-            <span style={{ fontSize: 12, color: 'var(--green)' }}>Health data imported</span>
-          </div>
-
-          <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Metrics</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 6, marginBottom: 12 }}>
-            {[
-              ['Steps', s(metrics.steps?.toLocaleString()), '', 'var(--green)'],
-              ['Heart rate', s(metrics.heartRate), metrics.heartRate ? 'bpm' : '', '#FF5C7A'],
-              ['Sleep', s(metrics.sleep), metrics.sleep ? 'hrs' : '', 'var(--softPurple)'],
-              ['Weight', s(metrics.weight), metrics.weight ? 'kg' : '', 'var(--gold)'],
-              ['Active cal', s(metrics.activeCalories), metrics.activeCalories ? 'kcal' : '', 'var(--purple)'],
-              ['Hydration', s(metrics.hydration), metrics.hydration && metrics.hydration !== '0.00' ? 'L' : '', 'var(--blue)'],
-            ].map(([l, v, u, c]) => (
-              <div key={l} style={{ background: 'var(--panel)', borderRadius: 7, padding: 10 }}>
-                <div style={{ fontSize: 8, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 3 }}>{l}</div>
-                <span style={{ fontFamily: 'Georgia,serif', fontSize: 18, fontWeight: 700, color: v === '—' ? 'var(--dim)' : c }}>{v}</span>
-                {u && <span style={{ fontSize: 9, color: 'var(--muted)', marginLeft: 2 }}>{u}</span>}
-              </div>
-            ))}
-          </div>
-
-          <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Health score</div>
-          <div style={{ background: 'var(--panel)', borderRadius: 8, padding: '12px 14px' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
-              <span style={{ fontFamily: 'Georgia,serif', fontSize: 36, fontWeight: 700, color: 'var(--text)' }}>{score}</span>
+      {/* Health Score */}
+      <div style={{ background: 'var(--panel)', borderRadius: 10, padding: '14px 16px', marginBottom: 8 }}>
+        <div style={{ fontSize: 8, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 6 }}>Health Score</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontFamily: 'Georgia,serif', fontSize: 42, fontWeight: 700, color: 'var(--text)', lineHeight: 1 }}>
+              {score ?? '—'}
+            </span>
+            {score && (
               <span style={{ fontSize: 12, color: score >= 70 ? 'var(--green)' : score >= 50 ? 'var(--gold)' : '#FF5C7A' }}>
                 {score >= 70 ? 'Good' : score >= 50 ? 'Fair' : 'Needs attention'}
               </span>
-            </div>
-            <div style={{ height: 4, borderRadius: 2, background: 'var(--border)' }}>
-              <div style={{ height: 4, borderRadius: 2, background: 'var(--green)', width: `${score}%`, transition: 'width .6s' }} />
+            )}
+          </div>
+          {!hasData && (
+            <span style={{ fontSize: 10, color: 'var(--dim)', textAlign: 'right', lineHeight: 1.5 }}>
+              Import data<br/>to calculate
+            </span>
+          )}
+        </div>
+        <div style={{ height: 3, borderRadius: 2, background: 'var(--border)', marginTop: 10 }}>
+          <div style={{ height: 3, borderRadius: 2, background: score >= 70 ? 'var(--green)' : score >= 50 ? 'var(--gold)' : '#FF5C7A', width: `${score ?? 0}%`, transition: 'width .6s' }} />
+        </div>
+      </div>
+
+      {/* Metrics grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 6, marginBottom: 8 }}>
+        <MetricTile label="Steps" value={s(m.steps?.toLocaleString())} color="var(--green)"
+          sub={m.steps > 0 ? `${Math.round((m.steps / 10000) * 100)}% of 10k goal` : null} />
+        <MetricTile label="Heart Rate" value={s(m.heartRate)} unit="bpm" color="#FF5C7A"
+          sub={m.heartRate ? (m.heartRate < 60 ? 'Low' : m.heartRate < 80 ? 'Normal' : 'Elevated') : null} />
+        <MetricTile label="Sleep" value={s(m.sleep)} unit="hrs" color="var(--softPurple)"
+          sub={m.sleep ? (parseFloat(m.sleep) >= 7 ? 'On target' : 'Below 7hr target') : null} />
+        <MetricTile label="Weight" value={s(m.weight)} unit="kg" color="var(--gold)" />
+        <MetricTile label="Active Cal" value={s(m.activeCalories ? m.activeCalories.toLocaleString() : null)} unit="kcal" color="var(--purple)" />
+        <MetricTile label="Hydration" value={m.hydration && m.hydration !== '0.00' ? s(m.hydration) : '—'} unit="L" color="var(--blue)" />
+      </div>
+
+      {/* BMI */}
+      {m.bmi && (
+        <div style={{ background: 'var(--panel)', borderRadius: 10, padding: '10px 14px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 8, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 2 }}>BMI</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <span style={{ fontFamily: 'Georgia,serif', fontSize: 22, fontWeight: 700, color: parseFloat(m.bmi) < 23 ? 'var(--green)' : 'var(--gold)' }}>{m.bmi}</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>{parseFloat(m.bmi) < 18.5 ? 'Underweight' : parseFloat(m.bmi) < 23 ? 'Normal' : parseFloat(m.bmi) < 27.5 ? 'Overweight' : 'Obese'}</span>
             </div>
           </div>
-        </>
+          <div style={{ fontSize: 9, color: 'var(--dim)', textAlign: 'right' }}>Asian BMI<br/>cutoffs</div>
+        </div>
       )}
 
-      {!metrics && !loading && (
-        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>❤</div>
-          <div style={{ fontSize: 14, color: 'var(--muted)' }}>Import your Health Connect data to see metrics</div>
-          <div style={{ fontSize: 11, color: 'var(--dim)', marginTop: 8, lineHeight: 1.6 }}>
-            On your phone: Health Connect → Settings → Export data<br/>
-            Then select the exported .zip here
-          </div>
+      {/* 7-day steps chart */}
+      <div style={{ background: 'var(--panel)', borderRadius: 10, padding: '12px 14px', marginBottom: 8 }}>
+        <div style={{ fontSize: 8, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Steps — last 7 days</div>
+        <BarChart data={chartData} color="var(--purple)" />
+      </div>
+
+      {!hasData && (
+        <div style={{ textAlign: 'center', padding: '20px 16px', color: 'var(--dim)', fontSize: 11, lineHeight: 1.7 }}>
+          On your phone: Health Connect → Settings → Export data<br/>
+          Then tap Import above to load your .zip file
         </div>
       )}
     </div>
