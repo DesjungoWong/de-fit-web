@@ -204,7 +204,7 @@ const FALLBACK_IDX = {
   'steps_record_table':                   { start_time: 9, count: 14 },
   'resting_heart_rate_record_table':      { time: 9, beats_per_minute: 11 },
   'sleep_session_record_table':           { start_time: 9, end_time: 11 },
-  'weight_record_table':                  { time: 9, weight: 11 },
+  'weight_record_table':                  { time: 9, weight: 12 },  // 12 = weight REAL (zone_offset at 11)
   'active_calories_burned_record_table':  { start_time: 9, energy: 13 },
   'hydration_record_table':               { start_time: 9, volume: 13 },
 }

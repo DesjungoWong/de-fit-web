@@ -6,6 +6,7 @@ import HealthScreen from './screens/HealthScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import LoginScreen from './screens/LoginScreen'
 import { getCurrentUser, clearCurrentUser } from './store/authStore'
+import { reinitForUser } from './store/dayStore'
 
 const DeLogo = () => (
   <svg width="26" height="26" viewBox="0 0 72 72" aria-hidden="true">
@@ -30,11 +31,14 @@ export default function App() {
   }, [isDark])
 
   function handleLogin() {
-    setCurrentUser2(getCurrentUser())
+    const u = getCurrentUser()
+    setCurrentUser2(u)
+    reinitForUser()
   }
 
   function handleLogout() {
     clearCurrentUser()
+    reinitForUser()
     setCurrentUser2(null)
   }
 

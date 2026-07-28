@@ -1,8 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
+import { getCurrentUser } from './authStore'
 
-const DAY_KEY = () => 'defit_day_' + new Date().toISOString().slice(0, 10)
-const SETTINGS_KEY = 'defit_settings'
-const HEALTH_KEY = 'defit_health'
+function userId() {
+  return getCurrentUser()?.id || 'guest'
+}
+
+const DAY_KEY = () => `defit_day_${userId()}_${new Date().toISOString().slice(0, 10)}`
+const SETTINGS_KEY = () => `defit_settings_${userId()}`
+const HEALTH_KEY = () => `defit_health_${userId()}`
 
 function loadDay() {
   try {
@@ -14,19 +19,26 @@ function loadDay() {
 
 function loadHealth() {
   try {
-    return JSON.parse(localStorage.getItem(HEALTH_KEY)) || {}
+    return JSON.parse(localStorage.getItem(HEALTH_KEY())) || {}
   } catch {
     return {}
   }
 }
 
-// Simple global state via module-level variables + subscriber pattern
+// Module-level state — call reinitForUser() on login/logout to reload
 let _dayState = loadDay()
 let _healthState = loadHealth()
 let _listeners = []
 
 function notify() {
   _listeners.forEach(fn => fn())
+}
+
+// Called by App when user switches so store reloads from the new user's keys
+export function reinitForUser() {
+  _dayState = loadDay()
+  _healthState = loadHealth()
+  notify()
 }
 
 export function useDayStore() {
@@ -61,7 +73,7 @@ export function useDayStore() {
 
   const setHealth = useCallback((h) => {
     _healthState = { ..._healthState, ...h }
-    localStorage.setItem(HEALTH_KEY, JSON.stringify(_healthState))
+    localStorage.setItem(HEALTH_KEY(), JSON.stringify(_healthState))
     notify()
   }, [])
 
@@ -83,11 +95,10 @@ export function useDayStore() {
   }
 }
 
-// Legacy helpers kept for Settings compatibility
 export function getSettings() {
-  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {} } catch { return {} }
+  try { return JSON.parse(localStorage.getItem(SETTINGS_KEY())) || {} } catch { return {} }
 }
 
 export function saveSettings(s) {
-  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)) } catch {}
+  try { localStorage.setItem(SETTINGS_KEY(), JSON.stringify(s)) } catch {}
 }
