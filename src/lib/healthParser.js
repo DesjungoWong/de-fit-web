@@ -111,19 +111,22 @@ function readSerial(dv, offset, serialType) {
   return [null, 0]
 }
 
-// Convert a value (may be BigInt nanoseconds, Number ms, or string) to ms
+// Convert a value (BigInt, Number, or string) to milliseconds.
+// Health Connect stores timestamps as either:
+//   - milliseconds (~1.78e12 for 2026) — most tables
+//   - nanoseconds  (~1.78e18 for 2026) — detectable by being > 1e15
 function toMs(v) {
   if (v === null || v === undefined) return null
   let n
   if (typeof v === 'bigint') n = v
   else if (typeof v === 'string') { try { n = BigInt(v) } catch { return null } }
   else { n = BigInt(Math.round(v)) }
-  // Health Connect stores timestamps as nanoseconds since Unix epoch
-  // Current time ~1.75e18 ns; detect: > 1e15 = nanoseconds, > 1e12 = microseconds, else ms
-  if (n < 0n) return null
-  if (n > 1000000000000000n) return Number(n / 1000000n)   // ns → ms
-  if (n > 1000000000000n) return Number(n / 1000n)          // µs → ms
-  return Number(n)                                           // already ms
+  if (n <= 0n) return null
+  // Nanoseconds: ~1.78e18 — clearly > 1e15
+  if (n > 1_000_000_000_000_000n) return Number(n / 1_000_000n)  // ns → ms
+  // Milliseconds: ~1.78e12 for 2026 — return as-is
+  // (Do NOT add a µs branch — ms timestamps ARE in the 1e12 range)
+  return Number(n)
 }
 
 // Convert a Number (treating as ns if large) back to ms
@@ -194,6 +197,18 @@ function colIdx(names, name) {
   return i  // -1 if not found
 }
 
+// Hardcoded fallback column indices (empirically verified from debug output).
+// Health Connect schema has one extra null column at index [1], shifting everything +1
+// vs the documented schema. start_time is at [9] not [8].
+const FALLBACK_IDX = {
+  'steps_record_table':                   { start_time: 9, count: 14 },
+  'resting_heart_rate_record_table':      { time: 9, beats_per_minute: 11 },
+  'sleep_session_record_table':           { start_time: 9, end_time: 11 },
+  'weight_record_table':                  { time: 9, weight: 11 },
+  'active_calories_burned_record_table':  { start_time: 9, energy: 13 },
+  'hydration_record_table':               { start_time: 9, volume: 13 },
+}
+
 // Read sqlite_master (page 1 B-tree) — returns { tableName: { rootPage, sql, cols[] } }
 async function getTableInfo(file, pageSize, tableNames) {
   const cells = await traverseBtree(file, 1, pageSize)
@@ -232,7 +247,12 @@ export async function parseHealthConnect(dbFile) {
     const tableInfo = await getTableInfo(dbFile, pageSize, needed)
     debugLog.push({
       event: 'tables_found',
-      tables: Object.entries(tableInfo).map(([n, t]) => ({ name: n, rootPage: t.rootPage, cols: t.cols }))
+      tables: Object.entries(tableInfo).map(([n, t]) => ({
+        name: n, rootPage: t.rootPage,
+        cols: t.cols,
+        sqlOk: !!t.sql,
+        sqlPreview: t.sql ? t.sql.slice(0, 80) : null
+      }))
     })
     debugLog.push({ event: 'tables_missing', missing: needed.filter(n => !tableInfo[n]) })
 
@@ -245,18 +265,32 @@ export async function parseHealthConnect(dbFile) {
     const bucketMap = {}
     last7.forEach(b => { bucketMap[b.dayStart] = b })
 
+    // Helper: get column index from dynamic schema, fall back to hardcoded map
+    function getIdx(tableName, colName, sc) {
+      const dynIdx = colIdx(sc, colName)
+      if (dynIdx >= 0) return dynIdx
+      return FALLBACK_IDX[tableName]?.[colName] ?? -1
+    }
+
+    function toNum(v) {
+      if (v === null || v === undefined) return null
+      if (typeof v === 'bigint') return Number(v)
+      if (typeof v === 'number') return v
+      return parseFloat(v)
+    }
+
     // ── Steps ──
     let stepsByDay = {}
     const stepsInfo = tableInfo['steps_record_table']
     if (stepsInfo) {
       const cells = await traverseBtree(dbFile, stepsInfo.rootPage, pageSize)
       const sc = stepsInfo.cols
-      const tIdx = colIdx(sc, 'start_time'), cIdx = colIdx(sc, 'count')
-      debugLog.push({ event: 'steps', cellCount: cells.length, cols: sc, tIdx, cIdx, firstValues: cells[0]?.values?.slice(0, 16)?.map(v => typeof v === 'bigint' ? v.toString() : v) ?? null })
+      const tIdx = getIdx('steps_record_table', 'start_time', sc)
+      const cIdx = getIdx('steps_record_table', 'count', sc)
+      debugLog.push({ event: 'steps', cellCount: cells.length, tIdx, cIdx, firstValues: cells[0]?.values?.slice(0, 16)?.map(v => typeof v === 'bigint' ? v.toString() : v) ?? null })
       for (const { values } of cells) {
         const tMs = tIdx >= 0 ? toMs(values[tIdx]) : null
-        const count = cIdx >= 0 ? values[cIdx] : null
-        const cnt = typeof count === 'bigint' ? Number(count) : count
+        const cnt = toNum(cIdx >= 0 ? values[cIdx] : null)
         if (!tMs || !cnt) continue
         const ds = dayStart(tMs)
         stepsByDay[ds] = (stepsByDay[ds] || 0) + cnt
@@ -270,13 +304,13 @@ export async function parseHealthConnect(dbFile) {
     if (hrInfo) {
       const cells = await traverseBtree(dbFile, hrInfo.rootPage, pageSize)
       const sc = hrInfo.cols
-      const tIdx = colIdx(sc, 'time'), bIdx = colIdx(sc, 'beats_per_minute')
+      const tIdx = getIdx('resting_heart_rate_record_table', 'time', sc)
+      const bIdx = getIdx('resting_heart_rate_record_table', 'beats_per_minute', sc)
       debugLog.push({ event: 'hr', cellCount: cells.length, tIdx, bIdx, firstValues: cells[0]?.values?.slice(0, 16)?.map(v => typeof v === 'bigint' ? v.toString() : v) ?? null })
       for (const { values } of cells) {
         const tMs = tIdx >= 0 ? toMs(values[tIdx]) : null
-        const bpm = bIdx >= 0 ? values[bIdx] : null
-        const bpmN = typeof bpm === 'bigint' ? Number(bpm) : bpm
-        if (tMs > hrTime && bpmN) { hrTime = tMs; heartRate = bpmN }
+        const bpm = toNum(bIdx >= 0 ? values[bIdx] : null)
+        if (tMs > hrTime && bpm) { hrTime = tMs; heartRate = Math.round(bpm) }
       }
     }
 
@@ -286,12 +320,13 @@ export async function parseHealthConnect(dbFile) {
     if (sleepInfo) {
       const cells = await traverseBtree(dbFile, sleepInfo.rootPage, pageSize)
       const sc = sleepInfo.cols
-      const stIdx = colIdx(sc, 'start_time'), etIdx = colIdx(sc, 'end_time')
+      const stIdx = getIdx('sleep_session_record_table', 'start_time', sc)
+      const etIdx = getIdx('sleep_session_record_table', 'end_time', sc)
       debugLog.push({ event: 'sleep', cellCount: cells.length, stIdx, etIdx, firstValues: cells[0]?.values?.slice(0, 16)?.map(v => typeof v === 'bigint' ? v.toString() : v) ?? null })
       for (const { values } of cells) {
         const startMs = stIdx >= 0 ? toMs(values[stIdx]) : null
         const endMs = etIdx >= 0 ? toMs(values[etIdx]) : null
-        if (startMs > sleepTime && endMs) {
+        if (startMs > sleepTime && endMs && endMs > startMs) {
           sleepTime = startMs
           sleep = ((endMs - startMs) / 3600000).toFixed(1)
         }
@@ -304,13 +339,13 @@ export async function parseHealthConnect(dbFile) {
     if (wInfo) {
       const cells = await traverseBtree(dbFile, wInfo.rootPage, pageSize)
       const sc = wInfo.cols
-      const tIdx = colIdx(sc, 'time'), wIdx = colIdx(sc, 'weight')
+      const tIdx = getIdx('weight_record_table', 'time', sc)
+      const wIdx = getIdx('weight_record_table', 'weight', sc)
       debugLog.push({ event: 'weight', cellCount: cells.length, tIdx, wIdx, firstValues: cells[0]?.values?.slice(0, 16)?.map(v => typeof v === 'bigint' ? v.toString() : v) ?? null })
       for (const { values } of cells) {
         const tMs = tIdx >= 0 ? toMs(values[tIdx]) : null
-        const w = wIdx >= 0 ? values[wIdx] : null
-        const wN = typeof w === 'bigint' ? Number(w) : (typeof w === 'number' ? w : parseFloat(w))
-        if (tMs > wTime && wN) { wTime = tMs; weight = wN.toFixed(1) }
+        const wN = toNum(wIdx >= 0 ? values[wIdx] : null)
+        if (tMs > wTime && wN && wN > 0) { wTime = tMs; weight = wN.toFixed(1) }
       }
     }
 
@@ -320,12 +355,12 @@ export async function parseHealthConnect(dbFile) {
     if (calInfo) {
       const cells = await traverseBtree(dbFile, calInfo.rootPage, pageSize)
       const sc = calInfo.cols
-      const tIdx = colIdx(sc, 'start_time'), eIdx = colIdx(sc, 'energy')
+      const tIdx = getIdx('active_calories_burned_record_table', 'start_time', sc)
+      const eIdx = getIdx('active_calories_burned_record_table', 'energy', sc)
       debugLog.push({ event: 'calories', cellCount: cells.length, tIdx, eIdx })
       for (const { values } of cells) {
         const tMs = tIdx >= 0 ? toMs(values[tIdx]) : null
-        const energy = eIdx >= 0 ? values[eIdx] : null
-        const eN = typeof energy === 'bigint' ? Number(energy) : (typeof energy === 'number' ? energy : parseFloat(energy))
+        const eN = toNum(eIdx >= 0 ? values[eIdx] : null)
         if (!tMs || !eN) continue
         const ds = dayStart(tMs)
         calByDay[ds] = (calByDay[ds] || 0) + eN / 4184
@@ -339,12 +374,12 @@ export async function parseHealthConnect(dbFile) {
     if (hydInfo) {
       const cells = await traverseBtree(dbFile, hydInfo.rootPage, pageSize)
       const sc = hydInfo.cols
-      const tIdx = colIdx(sc, 'start_time'), vIdx = colIdx(sc, 'volume')
+      const tIdx = getIdx('hydration_record_table', 'start_time', sc)
+      const vIdx = getIdx('hydration_record_table', 'volume', sc)
       debugLog.push({ event: 'hydration', cellCount: cells.length, tIdx, vIdx })
       for (const { values } of cells) {
         const tMs = tIdx >= 0 ? toMs(values[tIdx]) : null
-        const vol = vIdx >= 0 ? values[vIdx] : null
-        const vN = typeof vol === 'bigint' ? Number(vol) : (typeof vol === 'number' ? vol : parseFloat(vol))
+        const vN = toNum(vIdx >= 0 ? values[vIdx] : null)
         if (!tMs || !vN) continue
         const ds = dayStart(tMs)
         hydByDay[ds] = (hydByDay[ds] || 0) + vN
