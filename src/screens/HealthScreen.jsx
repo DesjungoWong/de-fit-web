@@ -86,17 +86,14 @@ export default function HealthScreen() {
 
   const s = v => (v !== null && v !== undefined && v !== 0 && v !== '0' && v !== '0.00') ? String(v) : '—'
 
-  // Build 7-day bar chart data
-  const DAY_MS = 86400000
+  // Build 7-day bar chart — use last7 directly (anchored to last data date by parser)
   const todayDs = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime() })()
-  const chartData = Array.from({ length: 7 }, (_, i) => {
-    const ds = todayDs - (6 - i) * DAY_MS
-    const bucket = m.last7?.find(b => b.dayStart === ds)
-    const d = new Date(ds)
+  const chartData = (m.last7 || []).map(b => {
+    const d = new Date(b.dayStart)
     return {
       label: DAYS[d.getDay() === 0 ? 6 : d.getDay() - 1],
-      value: bucket?.steps || 0,
-      isToday: ds === todayDs
+      value: b.steps || 0,
+      isToday: b.dayStart === todayDs
     }
   })
 
