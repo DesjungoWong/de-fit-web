@@ -259,12 +259,6 @@ export async function parseHealthConnect(dbFile) {
     const DAY = 86400000
     const todayDs = dayStart(Date.now())
 
-    const last7 = Array.from({ length: 7 }, (_, i) => ({
-      dayStart: todayDs - (6 - i) * DAY, steps: 0, activeCalories: 0, hydration: 0
-    }))
-    const bucketMap = {}
-    last7.forEach(b => { bucketMap[b.dayStart] = b })
-
     // Helper: get column index from dynamic schema, fall back to hardcoded map
     function getIdx(tableName, colName, sc) {
       const dynIdx = colIdx(sc, colName)
@@ -294,7 +288,6 @@ export async function parseHealthConnect(dbFile) {
         if (!tMs || !cnt) continue
         const ds = dayStart(tMs)
         stepsByDay[ds] = (stepsByDay[ds] || 0) + cnt
-        if (bucketMap[ds]) bucketMap[ds].steps += cnt
       }
     }
 
@@ -345,7 +338,7 @@ export async function parseHealthConnect(dbFile) {
       for (const { values } of cells) {
         const tMs = tIdx >= 0 ? toMs(values[tIdx]) : null
         const wN = toNum(wIdx >= 0 ? values[wIdx] : null)
-        if (tMs > wTime && wN && wN > 0) { wTime = tMs; weight = wN.toFixed(1) }
+        if (tMs > wTime && wN && wN > 0) { wTime = tMs; weight = (wN / 1000).toFixed(1) }  // stored in grams
       }
     }
 
@@ -364,7 +357,6 @@ export async function parseHealthConnect(dbFile) {
         if (!tMs || !eN) continue
         const ds = dayStart(tMs)
         calByDay[ds] = (calByDay[ds] || 0) + eN / 4184
-        if (bucketMap[ds]) bucketMap[ds].activeCalories += eN / 4184
       }
     }
 
@@ -383,14 +375,32 @@ export async function parseHealthConnect(dbFile) {
         if (!tMs || !vN) continue
         const ds = dayStart(tMs)
         hydByDay[ds] = (hydByDay[ds] || 0) + vN
-        if (bucketMap[ds]) bucketMap[ds].hydration += vN
       }
     }
 
+    // Find the most recent day with any data — chart anchors here, not on today
+    const allDays = new Set([
+      ...Object.keys(stepsByDay),
+      ...Object.keys(calByDay),
+      ...Object.keys(hydByDay)
+    ])
+    const sortedDays = [...allDays].map(Number).sort((a, b) => b - a)
+    const anchorDs = sortedDays.length ? sortedDays[0] : todayDs
+
+    // Build last7 anchored to the most recent data date
+    const last7 = Array.from({ length: 7 }, (_, i) => ({
+      dayStart: anchorDs - (6 - i) * DAY,
+      steps: 0, activeCalories: 0, hydration: 0
+    }))
+    last7.forEach(b => {
+      b.steps = Math.round(stepsByDay[b.dayStart] || 0)
+      b.activeCalories = Math.round(calByDay[b.dayStart] || 0)
+      b.hydration = parseFloat(hydByDay[b.dayStart] || 0)
+    })
+
     function bestDay(byDay) {
       if (byDay[todayDs]) return byDay[todayDs]
-      const days = Object.keys(byDay).map(Number).sort((a, b) => b - a)
-      return days.length ? byDay[days[0]] : 0
+      return sortedDays.length ? (byDay[sortedDays[0]] || 0) : 0
     }
 
     const steps = Math.round(bestDay(stepsByDay))
@@ -398,7 +408,7 @@ export async function parseHealthConnect(dbFile) {
     const hydration = parseFloat(bestDay(hydByDay) || 0).toFixed(2)
     const bmi = weight ? (parseFloat(weight) / (1.70 * 1.70)).toFixed(1) : null
 
-    debugLog.push({ event: 'result', steps, heartRate, sleep, weight, activeCalories, hydration })
+    debugLog.push({ event: 'result', steps, heartRate, sleep, weight, activeCalories, hydration, anchorDate: new Date(anchorDs).toISOString().slice(0, 10) })
 
     return { steps, heartRate, sleep, weight, activeCalories, hydration, bmi, last7, importedAt: Date.now(), debugLog }
 
