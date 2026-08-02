@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react'
+import * as pdfjsLib from 'pdfjs-dist'
 import { useDayStore } from '../store/dayStore'
 import { callClaude } from '../api/claude'
 import { getDayFromReports, getDatesWithData } from '../store/reportsStore'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
 
 function CalorieRing({ consumed, goal, exercisePct }) {
   const r1 = 52, r2 = 40, cx = 63, cy = 63
@@ -238,8 +241,6 @@ export default function TodayScreen() {
     setImporting(true)
     setImportError('')
     try {
-      const pdfjsLib = await import('pdfjs-dist')
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href
       const ab = await file.arrayBuffer()
       const pdf = await pdfjsLib.getDocument({ data: ab }).promise
       let text = ''

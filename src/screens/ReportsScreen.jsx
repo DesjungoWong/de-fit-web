@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react'
+import * as pdfjsLib from 'pdfjs-dist'
 import { getWeeks, saveWeek, getDatesWithData } from '../store/reportsStore'
 import { getSettings } from '../store/dayStore'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`
 
 export default function ReportsScreen() {
   const [view, setView] = useState('week')
@@ -28,8 +31,6 @@ export default function ReportsScreen() {
     setUploading(true)
     setUploadError('')
     try {
-      const pdfjsLib = await import('pdfjs-dist')
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href
       const ab = await file.arrayBuffer()
       const pdf = await pdfjsLib.getDocument({ data: ab }).promise
       let text = ''
