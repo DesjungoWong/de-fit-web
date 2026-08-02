@@ -16,6 +16,7 @@ export default function SettingsScreen({ isDark, onToggle, onNavigate }) {
   const { calorieGoal, setCalorieGoal, health, setHealth } = useDayStore()
   const s0 = getSettings()
   const [kcalTarget, setKcalTarget] = useState(calorieGoal)
+  const [proteinTarget, setProteinTarget] = useState(s0.proteinTarget ?? 140)
   const [fasting, setFasting] = useState(s0.fasting ?? false)
   const [apiKey, setApiKey] = useState(localStorage.getItem('claude_api_key') || '')
   const [drivePath, setDrivePath] = useState(s0.drivePath || '')
@@ -104,6 +105,23 @@ export default function SettingsScreen({ isDark, onToggle, onNavigate }) {
               persist({ calorieGoal: v })
             }}
             style={{ background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 6, color: 'var(--text)', padding: '7px 10px', fontSize: 12, width: 80, textAlign: 'right', outline: 'none', fontFamily: 'inherit' }}
+          />
+        }
+      />
+
+      <Row
+        label="Daily protein target"
+        sub="Used in Reports for deficit / surplus tracking"
+        right={
+          <input
+            type="number"
+            value={proteinTarget}
+            onChange={e => {
+              const v = Number(e.target.value)
+              setProteinTarget(v)
+              persist({ proteinTarget: v })
+            }}
+            style={{ background: 'var(--panel)', border: '0.5px solid var(--purple)', borderRadius: 6, color: 'var(--purple)', padding: '7px 10px', fontSize: 12, width: 80, textAlign: 'right', outline: 'none', fontFamily: 'inherit' }}
           />
         }
       />

@@ -4,6 +4,7 @@ import TodayScreen from './screens/TodayScreen'
 import LogScreen from './screens/LogScreen'
 import HealthScreen from './screens/HealthScreen'
 import SettingsScreen from './screens/SettingsScreen'
+import ReportsScreen from './screens/ReportsScreen'
 import LoginScreen from './screens/LoginScreen'
 import { getCurrentUser, clearCurrentUser } from './store/authStore'
 import { reinitForUser } from './store/dayStore'
@@ -54,6 +55,7 @@ export default function App() {
     today: TodayScreen,
     log: LogScreen,
     health: HealthScreen,
+    reports: ReportsScreen,
     settings: SettingsScreen,
   }
   const Screen = screens[tab]
@@ -89,11 +91,12 @@ export default function App() {
           { id: 'today', icon: '⌂', label: 'Today' },
           { id: 'log', icon: '✎', label: 'Log' },
           { id: 'health', icon: '♡', label: 'Health' },
+          { id: 'reports', icon: '▦', label: 'Reports' },
           { id: 'settings', icon: '⚙', label: 'Settings' },
         ].map(t => (
-          <div key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer' }}>
-            <span style={{ fontSize: 22, color: tab === t.id ? 'var(--purple)' : 'var(--dim)', lineHeight: 1.2 }}>{t.icon}</span>
-            <span style={{ fontSize: 10, color: tab === t.id ? 'var(--purple)' : 'var(--dim)', letterSpacing: '.04em' }}>{t.label}</span>
+          <div key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, cursor: 'pointer' }}>
+            <span style={{ fontSize: 19, color: tab === t.id ? 'var(--purple)' : 'var(--dim)', lineHeight: 1.2 }}>{t.icon}</span>
+            <span style={{ fontSize: 9, color: tab === t.id ? 'var(--purple)' : 'var(--dim)', letterSpacing: '.04em' }}>{t.label}</span>
           </div>
         ))}
       </div>

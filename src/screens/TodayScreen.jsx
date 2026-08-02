@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useDayStore } from '../store/dayStore'
 import { callClaude } from '../api/claude'
+import { getDayFromReports, getDatesWithData } from '../store/reportsStore'
 
 function CalorieRing({ consumed, goal, exercisePct }) {
   const r1 = 52, r2 = 40, cx = 63, cy = 63
@@ -98,29 +99,129 @@ function MealRow({ entry, onDelete, onPaxChange, index }) {
   )
 }
 
+// Mini calendar overlay
+function MiniCalendar({ selectedDate, onSelect, datesWithData }) {
+  const [viewYear, setViewYear] = useState(selectedDate.getFullYear())
+  const [viewMonth, setViewMonth] = useState(selectedDate.getMonth())
+
+  const today = new Date()
+  const firstDay = new Date(viewYear, viewMonth, 1)
+  // Start week on Monday: 0=Mon..6=Sun
+  let startDow = firstDay.getDay() - 1
+  if (startDow < 0) startDow = 6
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+
+  const monthName = new Date(viewYear, viewMonth).toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
+
+  function prevMonth() {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
+    else setViewMonth(m => m - 1)
+  }
+  function nextMonth() {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
+    else setViewMonth(m => m + 1)
+  }
+
+  const cells = []
+  for (let i = 0; i < startDow; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  return (
+    <div style={{ background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 10, padding: '12px', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span onClick={prevMonth} style={{ fontSize: 16, color: 'var(--muted)', cursor: 'pointer', padding: '0 6px' }}>‹</span>
+        <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>{monthName}</span>
+        <span onClick={nextMonth} style={{ fontSize: 16, color: 'var(--muted)', cursor: 'pointer', padding: '0 6px' }}>›</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginBottom: 4 }}>
+        {['M','T','W','T','F','S','S'].map((d, i) => (
+          <div key={i} style={{ textAlign: 'center', fontSize: 9, color: 'var(--dim)', padding: '2px 0' }}>{d}</div>
+        ))}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} />
+          const cellDate = new Date(viewYear, viewMonth, d)
+          const dateStr = cellDate.toISOString().slice(0, 10)
+          const isFuture = cellDate > today
+          const isSelected = selectedDate.toISOString().slice(0, 10) === dateStr
+          const isToday = today.toISOString().slice(0, 10) === dateStr
+          const hasData = datesWithData.has(dateStr)
+
+          return (
+            <div
+              key={i}
+              onClick={() => !isFuture && onSelect(cellDate)}
+              style={{
+                textAlign: 'center', padding: '5px 2px', borderRadius: 6, cursor: isFuture ? 'default' : 'pointer',
+                background: isSelected ? 'var(--purple)' : isToday ? 'rgba(161,0,255,0.15)' : 'transparent',
+                color: isFuture ? 'var(--border)' : isSelected ? '#fff' : 'var(--text)',
+                fontSize: 11, position: 'relative', fontWeight: isToday ? 700 : 400
+              }}
+            >
+              {d}
+              {hasData && !isSelected && (
+                <div style={{ position: 'absolute', bottom: 2, left: '50%', transform: 'translateX(-50%)', width: 3, height: 3, borderRadius: '50%', background: 'var(--purple)' }} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function TodayScreen() {
-  const { entries, calorieGoal, health, removeEntry, updateEntry } = useDayStore()
+  const { entries, calorieGoal, health, removeEntry, updateEntry, addEntry } = useDayStore()
   const [msg, setMsg] = useState('')
   const [reply, setReply] = useState('Ask me anything about your health today.')
   const [loading, setLoading] = useState(false)
+
+  // Date navigation state
+  const [selectedDate, setSelectedDate] = useState(() => new Date())
+  const [showCal, setShowCal] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
+  const [pastEntries, setPastEntries] = useState([])
+  const [pastReportsDay, setPastReportsDay] = useState(null)
+
+  const selectedDateStr = selectedDate.toISOString().slice(0, 10)
+  const isToday = selectedDateStr === new Date().toISOString().slice(0, 10)
+  const datesWithData = getDatesWithData()
+
+  useEffect(() => {
+    if (!isToday) {
+      const uid = localStorage.getItem('defit_current_user') || 'guest'
+      const key = `defit_day_${uid}_${selectedDateStr}`
+      const stored = JSON.parse(localStorage.getItem(key) || '{"entries":[]}')
+      setPastEntries(stored.entries || [])
+      setPastReportsDay(getDayFromReports(selectedDateStr))
+    } else {
+      setPastEntries([])
+      setPastReportsDay(null)
+    }
+  }, [selectedDateStr, isToday])
+
+  const displayEntries = isToday ? entries : pastEntries
 
   // Effective calories/macros accounting for pax dividers
   const effCal = e => Math.round((e.calories || 0) / (e.pax || 1))
   const effMacro = (e, k) => Math.round((e[k] || 0) / (e.pax || 1))
 
-  const totalCal = entries.reduce((s, e) => s + effCal(e), 0)
-  const totalProtein = entries.reduce((s, e) => s + effMacro(e, 'protein'), 0)
-  const totalCarbs = entries.reduce((s, e) => s + effMacro(e, 'carbs'), 0)
-  const totalFat = entries.reduce((s, e) => s + effMacro(e, 'fat'), 0)
+  const totalCal = displayEntries.reduce((s, e) => s + effCal(e), 0)
+  const totalProtein = displayEntries.reduce((s, e) => s + effMacro(e, 'protein'), 0)
+  const totalCarbs = displayEntries.reduce((s, e) => s + effMacro(e, 'carbs'), 0)
+  const totalFat = displayEntries.reduce((s, e) => s + effMacro(e, 'fat'), 0)
   const exercisePct = Math.min((health?.activeCalories || 0) / 500, 1)
 
   async function sendMsg() {
     if (!msg.trim()) return
     setLoading(true)
-    const mealSummary = entries.length
-      ? entries.map(e => `${e.name} (${effCal(e)}kcal${e.pax > 1 ? ` ÷${e.pax}pax` : ''})`).join(', ')
+    const mealSummary = displayEntries.length
+      ? displayEntries.map(e => `${e.name} (${effCal(e)}kcal${e.pax > 1 ? ` ÷${e.pax}pax` : ''})`).join(', ')
       : 'nothing logged yet'
-    const system = `You are DE.Fit's AI health advisor. Be concise — 2-3 sentences max. Today's data: Calories eaten: ${totalCal}/${calorieGoal}kcal. Meals: ${mealSummary}. Steps: ${health?.steps || 'unknown'}. Sleep: ${health?.sleep || 'unknown'}hrs.`
+    const dateLabel = isToday ? 'today' : selectedDate.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
+    const system = `You are DE.Fit's AI health advisor. Be concise — 2-3 sentences max. Data for ${dateLabel}: Calories eaten: ${totalCal}/${calorieGoal}kcal. Meals: ${mealSummary}. Steps: ${health?.steps || 'unknown'}. Sleep: ${health?.sleep || 'unknown'}hrs.`
     try {
       const r = await callClaude([{ role: 'user', content: msg }], system)
       setReply(r || 'Could not reach AI advisor.')
@@ -131,12 +232,87 @@ export default function TodayScreen() {
     setLoading(false)
   }
 
-  const now = new Date()
-  const dateStr = now.toLocaleDateString('en-SG', { weekday: 'long', day: 'numeric', month: 'short' })
+  async function handleDailyPdfImport(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setImportError('')
+    try {
+      const pdfjsLib = await import('pdfjs-dist')
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href
+      const ab = await file.arrayBuffer()
+      const pdf = await pdfjsLib.getDocument({ data: ab }).promise
+      let text = ''
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i)
+        const content = await page.getTextContent()
+        text += content.items.map(item => item.str).join(' ') + '\n'
+      }
+      const res = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 2048,
+          messages: [{ role: 'user', content: `Extract all meal items from this daily nutrition log. Return ONLY valid JSON array, no markdown or explanation: [{"name":"meal name","calories":0,"protein":0,"carbs":0,"fat":0,"meal":"Morning|Lunch|Dinner|Snack"}]\n\n${text}` }]
+        })
+      })
+      const data = await res.json()
+      const raw = data.content?.[0]?.text || '[]'
+      const meals = JSON.parse(raw.replace(/```json|```/g, '').trim())
+      const uid = localStorage.getItem('defit_current_user') || 'guest'
+      const dayKey = `defit_day_${uid}_${selectedDateStr}`
+      const existing = JSON.parse(localStorage.getItem(dayKey) || '{"entries":[],"calorieGoal":1800}')
+      const newEntries = meals.map(m => ({ ...m, id: Date.now() + Math.random(), pax: 1, loggedAt: Date.now(), fromPdf: true }))
+      existing.entries = [...(existing.entries || []), ...newEntries]
+      localStorage.setItem(dayKey, JSON.stringify(existing))
+      if (isToday) {
+        newEntries.forEach(m => addEntry(m))
+      } else {
+        setPastEntries(existing.entries)
+      }
+    } catch (err) {
+      setImportError('Could not parse PDF: ' + err.message)
+    }
+    setImporting(false)
+    e.target.value = ''
+  }
 
   return (
     <div style={{ padding: '14px 16px', paddingBottom: 20 }}>
-      <div style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 12 }}>{dateStr}</div>
+
+      {/* Date navigation */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '8px 14px', marginBottom: 12 }}>
+        <span
+          onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); setShowCal(false) }}
+          style={{ fontSize: 18, color: 'var(--muted)', padding: '0 6px', cursor: 'pointer' }}
+        >‹</span>
+        <div onClick={() => setShowCal(v => !v)} style={{ textAlign: 'center', flex: 1, cursor: 'pointer' }}>
+          <div style={{ fontSize: 9, letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--purple)' }}>
+            {selectedDate.toLocaleDateString('en-SG', { weekday: 'long' })} · tap for calendar
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+            {selectedDate.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </div>
+        </div>
+        <span
+          onClick={() => {
+            const d = new Date(selectedDate)
+            d.setDate(d.getDate() + 1)
+            if (d <= new Date()) { setSelectedDate(d); setShowCal(false) }
+          }}
+          style={{ fontSize: 18, color: selectedDate.toDateString() === new Date().toDateString() ? 'var(--border)' : 'var(--muted)', padding: '0 6px', cursor: 'pointer' }}
+        >›</span>
+      </div>
+
+      {/* Calendar overlay */}
+      {showCal && (
+        <MiniCalendar
+          selectedDate={selectedDate}
+          onSelect={d => { setSelectedDate(d); setShowCal(false) }}
+          datesWithData={datesWithData}
+        />
+      )}
 
       {/* Calorie Ring */}
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
@@ -158,23 +334,77 @@ export default function TodayScreen() {
         ))}
       </div>
 
-      {/* Today's Meals */}
+      {/* PDF import strip */}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--panel)', border: '0.5px dashed var(--border)', borderRadius: 8, padding: '8px 12px', cursor: importing ? 'not-allowed' : 'pointer', marginBottom: 10, opacity: importing ? 0.6 : 1 }}>
+        <span style={{ fontSize: 16 }}>📄</span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, color: 'var(--text)' }}>{importing ? 'Parsing PDF…' : 'Import nutrition PDF'}</div>
+          <div style={{ fontSize: 10, color: 'var(--dim)' }}>Appends meals · existing entries kept</div>
+        </div>
+        <input type="file" accept=".pdf" onChange={handleDailyPdfImport} disabled={importing} style={{ display: 'none' }} />
+      </label>
+      {importError && <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 8 }}>{importError}</div>}
+
+      {/* Meals section */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)' }}>Today's meals</div>
-        {entries.length > 0 && <div style={{ fontSize: 9, color: 'var(--dim)' }}>← swipe to delete · ±pax</div>}
+        <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)' }}>
+          {isToday ? "Today's meals" : selectedDate.toLocaleDateString('en-SG', { day: 'numeric', month: 'short' }) + "'s meals"}
+        </div>
+        {displayEntries.length > 0 && <div style={{ fontSize: 9, color: 'var(--dim)' }}>← swipe to delete · ±pax</div>}
       </div>
 
-      {entries.length === 0 ? (
-        <div style={{ color: 'var(--dim)', fontSize: 13, padding: '12px 0' }}>No meals logged yet. Go to Log to add food.</div>
-      ) : entries.map((e, i) => (
+      {displayEntries.length === 0 ? (
+        <div style={{ color: 'var(--dim)', fontSize: 13, padding: '12px 0' }}>
+          {isToday ? 'No meals logged yet. Go to Log to add food.' : 'No meals logged for this date.'}
+        </div>
+      ) : displayEntries.map((e, i) => (
         <MealRow
           key={e.id || i}
           entry={e}
           index={i}
-          onDelete={id => removeEntry(id)}
-          onPaxChange={(id, pax) => updateEntry(id, { pax })}
+          onDelete={id => {
+            if (isToday) {
+              removeEntry(id)
+            } else {
+              const uid = localStorage.getItem('defit_current_user') || 'guest'
+              const dayKey = `defit_day_${uid}_${selectedDateStr}`
+              const existing = JSON.parse(localStorage.getItem(dayKey) || '{"entries":[]}')
+              existing.entries = existing.entries.filter(en => en.id !== id)
+              localStorage.setItem(dayKey, JSON.stringify(existing))
+              setPastEntries(existing.entries)
+            }
+          }}
+          onPaxChange={(id, pax) => {
+            if (isToday) {
+              updateEntry(id, { pax })
+            } else {
+              const uid = localStorage.getItem('defit_current_user') || 'guest'
+              const dayKey = `defit_day_${uid}_${selectedDateStr}`
+              const existing = JSON.parse(localStorage.getItem(dayKey) || '{"entries":[]}')
+              existing.entries = existing.entries.map(en => en.id === id ? { ...en, pax } : en)
+              localStorage.setItem(dayKey, JSON.stringify(existing))
+              setPastEntries(existing.entries)
+            }
+          }}
         />
       ))}
+
+      {/* Past reports day tile */}
+      {!isToday && pastReportsDay && (
+        <div style={{ background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginTop: 8 }}>
+          <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 6 }}>
+            From weekly report · {pastReportsDay.weekLabel}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6 }}>
+            {[['Cal in', pastReportsDay.calories + ' kcal'], ['Protein', pastReportsDay.protein + 'g'], ['Exercise', pastReportsDay.exercise || '—']].map(([l, v]) => (
+              <div key={l} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 12, fontFamily: 'Georgia,serif', fontWeight: 700, color: 'var(--text)' }}>{v}</div>
+                <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>{l}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* AI Advisor */}
       <div style={{ fontSize: 9, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)', marginTop: 16, marginBottom: 8 }}>AI health advisor</div>
