@@ -3,27 +3,75 @@ import { useDayStore } from '../store/dayStore'
 import { estimateFood, estimateFoodText } from '../api/claude'
 import { hpbFoods, categories } from '../data/hpbFoods'
 
-function ResultCard({ items, onAdd }) {
+function ResultCard({ items, onAdd, onAddDone }) {
+  const [selected, setSelected] = useState(() => new Set(items.map((_, i) => i)))
+
+  function toggle(i) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(i) ? next.delete(i) : next.add(i)
+      return next
+    })
+  }
+
+  function addSelected() {
+    items.filter((_, i) => selected.has(i)).forEach(item => onAdd(item))
+    onAddDone()
+  }
+
+  const selCount = selected.size
+
   return (
     <div style={{ background: 'var(--panel)', borderRadius: 8, padding: 12, marginTop: 10 }}>
-      <div style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Estimated nutrition</div>
-      {items.map((item, i) => (
-        <div key={i} style={{ marginBottom: i < items.length - 1 ? 10 : 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ fontSize: 14, color: 'var(--text)', fontWeight: 600 }}>{item.name}</span>
-            <span style={{ fontFamily: 'Georgia,serif', fontSize: 15, color: 'var(--purple)', fontWeight: 700 }}>{item.calories} kcal</span>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>
-            P {item.protein}g · C {item.carbs}g · F {item.fat}g · {item.servingSize}
-          </div>
-          <button
-            onClick={() => onAdd(item)}
-            style={{ width: '100%', background: 'var(--purple)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 0', fontSize: 11, letterSpacing: '.06em', cursor: 'pointer', fontFamily: 'inherit' }}
+      <div style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Estimated nutrition · tap to select</div>
+      {items.map((item, i) => {
+        const isOn = selected.has(i)
+        return (
+          <div
+            key={i}
+            onClick={() => toggle(i)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '10px 8px', borderRadius: 7, marginBottom: 4, cursor: 'pointer',
+              background: isOn ? 'rgba(161,0,255,0.10)' : 'transparent',
+              border: `0.5px solid ${isOn ? 'var(--purple)' : 'var(--border)'}`,
+              transition: 'background .15s, border-color .15s'
+            }}
           >
-            ADD TO LOG
-          </button>
-        </div>
-      ))}
+            {/* Checkbox circle */}
+            <div style={{
+              width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+              border: `2px solid ${isOn ? 'var(--purple)' : 'var(--border)'}`,
+              background: isOn ? 'var(--purple)' : 'transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background .15s, border-color .15s'
+            }}>
+              {isOn && <span style={{ color: '#fff', fontSize: 11, lineHeight: 1 }}>✓</span>}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: 'var(--text)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                P {item.protein}g · C {item.carbs}g · F {item.fat}g · {item.servingSize}
+              </div>
+            </div>
+            <span style={{ fontFamily: 'Georgia,serif', fontSize: 15, color: 'var(--purple)', fontWeight: 700, flexShrink: 0 }}>{item.calories}</span>
+          </div>
+        )
+      })}
+      <button
+        onClick={addSelected}
+        disabled={selCount === 0}
+        style={{
+          width: '100%', marginTop: 6,
+          background: selCount > 0 ? 'var(--purple)' : 'var(--border)',
+          color: selCount > 0 ? '#fff' : 'var(--dim)',
+          border: 'none', borderRadius: 6, padding: '10px 0',
+          fontSize: 11, letterSpacing: '.06em', cursor: selCount > 0 ? 'pointer' : 'default',
+          fontFamily: 'inherit', transition: 'background .15s'
+        }}
+      >
+        {selCount === 0 ? 'SELECT ITEMS TO ADD' : `ADD ${selCount} ITEM${selCount > 1 ? 'S' : ''} TO LOG`}
+      </button>
     </div>
   )
 }
@@ -52,6 +100,9 @@ export default function LogScreen() {
 
   function handleAdd(item) {
     addEntry({ ...item, meal: 'Meal' })
+  }
+
+  function handleAddDone() {
     setResult(null)
     setDesc('')
     setPreview(null)
@@ -239,7 +290,7 @@ export default function LogScreen() {
             )}
 
             {error && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8 }}>{error}</div>}
-            {result && <ResultCard items={result} onAdd={handleAdd} />}
+            {result && <ResultCard items={result} onAdd={handleAdd} onAddDone={handleAddDone} />}
           </div>
         </div>
       )}
