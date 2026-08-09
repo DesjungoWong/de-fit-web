@@ -1,7 +1,52 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useDayStore, getFavourites, toggleFavourite } from '../store/dayStore'
 import { estimateFood, estimateFoodText } from '../api/claude'
 import { hpbFoods, categories } from '../data/hpbFoods'
+import { getCurrentUser } from '../store/authStore'
+
+function MiniCalendar({ selectedDate, onSelect, onClose }) {
+  const [viewYear, setViewYear] = useState(selectedDate.getFullYear())
+  const [viewMonth, setViewMonth] = useState(selectedDate.getMonth())
+  const today = new Date()
+  const firstDay = new Date(viewYear, viewMonth, 1)
+  let startDow = firstDay.getDay() - 1; if (startDow < 0) startDow = 6
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+  const monthName = new Date(viewYear, viewMonth).toLocaleDateString('en-SG', { month: 'long', year: 'numeric' })
+  function prevMonth() { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) } else setViewMonth(m => m - 1) }
+  function nextMonth() { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) } else setViewMonth(m => m + 1) }
+  const cells = []; for (let i = 0; i < startDow; i++) cells.push(null); for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+  return (
+    <div style={{ background: 'var(--panel)', border: '0.5px solid var(--border)', borderRadius: 10, padding: 12, margin: '0 0 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span onClick={prevMonth} style={{ fontSize: 18, color: 'var(--muted)', cursor: 'pointer', padding: '0 8px' }}>‹</span>
+        <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>{monthName}</span>
+        <span onClick={nextMonth} style={{ fontSize: 18, color: 'var(--muted)', cursor: 'pointer', padding: '0 8px' }}>›</span>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginBottom: 4 }}>
+        {['M','T','W','T','F','S','S'].map((d, i) => <div key={i} style={{ textAlign: 'center', fontSize: 9, color: 'var(--dim)' }}>{d}</div>)}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+        {cells.map((d, i) => {
+          if (!d) return <div key={i} />
+          const cellDate = new Date(viewYear, viewMonth, d)
+          const isFuture = cellDate > today
+          const isSelected = selectedDate.toISOString().slice(0, 10) === cellDate.toISOString().slice(0, 10)
+          const isToday = today.toISOString().slice(0, 10) === cellDate.toISOString().slice(0, 10)
+          return (
+            <div key={i} onClick={() => { if (!isFuture) { onSelect(cellDate); onClose() } }}
+              style={{ textAlign: 'center', padding: '5px 2px', borderRadius: 6,
+                cursor: isFuture ? 'default' : 'pointer',
+                background: isSelected ? 'var(--purple)' : isToday ? 'rgba(161,0,255,0.15)' : 'transparent',
+                color: isFuture ? 'var(--border)' : isSelected ? '#fff' : 'var(--text)',
+                fontSize: 11, fontWeight: isToday ? 700 : 400 }}>
+              {d}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 function FoodRow({ f, isFav, onAdd, onToggleFav }) {
   return (
@@ -108,6 +153,42 @@ export default function LogScreen() {
   const [favs, setFavs] = useState(() => getFavourites())
   const fileRef = useRef()
 
+  // Date navigation
+  const [selectedDate, setSelectedDate] = useState(() => new Date())
+  const [showCal, setShowCal] = useState(false)
+  const [pastEntries, setPastEntries] = useState([])
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const selectedDateStr = selectedDate.toISOString().slice(0, 10)
+  const isToday = selectedDateStr === todayStr
+
+  useEffect(() => {
+    if (!isToday) {
+      const uid = getCurrentUser()?.id || 'guest'
+      const key = `defit_day_${uid}_${selectedDateStr}`
+      const stored = JSON.parse(localStorage.getItem(key) || '{"entries":[]}')
+      setPastEntries(stored.entries || [])
+    } else {
+      setPastEntries([])
+    }
+  }, [selectedDateStr, isToday])
+
+  const displayEntries = isToday ? entries : pastEntries
+
+  function addEntryToDate(item) {
+    if (isToday) {
+      addEntry({ ...item, meal: 'Meal' })
+    } else {
+      const uid = getCurrentUser()?.id || 'guest'
+      const key = `defit_day_${uid}_${selectedDateStr}`
+      const stored = JSON.parse(localStorage.getItem(key) || '{"entries":[]}')
+      stored.entries = [...(stored.entries || []), { ...item, meal: 'Meal', id: Date.now(), pax: 1, loggedAt: Date.now() }]
+      localStorage.setItem(key, JSON.stringify(stored))
+      setPastEntries(stored.entries)
+    }
+  }
+
+  const dateLabel = isToday ? 'Today' : selectedDate.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' })
+
   const catLabels = { All: 'All', favourites: '★ Favourites', hawker: 'Hawker', noodles: 'Noodles', indian: 'Indian', malay: 'Malay', western: 'Western', japanese: 'Japanese', drinks: 'Drinks', snacks: 'Snacks' }
 
   function handleToggleFav(foodId, e) {
@@ -127,7 +208,7 @@ export default function LogScreen() {
     : []
 
   function handleAdd(item) {
-    addEntry({ ...item, meal: 'Meal' })
+    addEntryToDate(item)
   }
 
   function handleAddDone() {
@@ -191,6 +272,20 @@ export default function LogScreen() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      {/* Date nav bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 16px 6px', borderBottom: '0.5px solid var(--border)', flexShrink: 0, background: 'var(--bg)' }}>
+        <span
+          onClick={() => { const d = new Date(selectedDate); d.setDate(d.getDate() - 1); setSelectedDate(d); setShowCal(false) }}
+          style={{ fontSize: 18, color: 'var(--muted)', cursor: 'pointer', padding: '2px 8px' }}>‹</span>
+        <div onClick={() => setShowCal(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: isToday ? 'var(--purple)' : 'var(--text)' }}>{dateLabel}</span>
+          <span style={{ fontSize: 10, color: 'var(--dim)' }}>▾</span>
+        </div>
+        <span
+          onClick={() => { if (!isToday) { const d = new Date(selectedDate); d.setDate(d.getDate() + 1); setSelectedDate(d); setShowCal(false) } }}
+          style={{ fontSize: 18, color: isToday ? 'var(--border)' : 'var(--muted)', cursor: isToday ? 'default' : 'pointer', padding: '2px 8px' }}>›</span>
+      </div>
+
       {/* Sub-tabs */}
       <div style={{ display: 'flex', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
         <TabBtn id="search" label="Search" />
@@ -201,6 +296,8 @@ export default function LogScreen() {
       {/* Search tab */}
       {(subTab === 'search' || subTab === 'catalog') && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
+          {/* Calendar overlay */}
+          {showCal && <MiniCalendar selectedDate={selectedDate} onSelect={setSelectedDate} onClose={() => setShowCal(false)} />}
           {/* Search input */}
           <input
             value={search}
@@ -248,18 +345,21 @@ export default function LogScreen() {
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           {/* Recently logged */}
           <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)', flexShrink: 0 }}>
-            <div style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 10 }}>Recently logged</div>
-            {entries.length === 0 ? (
-              <div style={{ color: 'var(--dim)', fontSize: 12 }}>No items logged yet today.</div>
-            ) : [...entries].reverse().slice(0, 5).map((e, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < Math.min(entries.length, 5) - 1 ? '0.5px solid var(--border)' : 'none' }}>
+            {showCal && <MiniCalendar selectedDate={selectedDate} onSelect={setSelectedDate} onClose={() => setShowCal(false)} />}
+            <div style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 10 }}>
+              {isToday ? 'Logged today' : `Logged on ${dateLabel}`}
+            </div>
+            {displayEntries.length === 0 ? (
+              <div style={{ color: 'var(--dim)', fontSize: 12 }}>No items logged{isToday ? ' yet today' : ' on this date'}.</div>
+            ) : [...displayEntries].reverse().slice(0, 5).map((e, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < Math.min(displayEntries.length, 5) - 1 ? '0.5px solid var(--border)' : 'none' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 13, color: 'var(--text)' }}>{e.name}</div>
                   <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 1 }}>P {e.protein || 0}g · C {e.carbs || 0}g · F {e.fat || 0}g</div>
                 </div>
                 <div style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: 'var(--purple)' }}>{e.calories}</div>
                 <div
-                  onClick={() => addEntry(e)}
+                  onClick={() => addEntryToDate(e)}
                   style={{ fontSize: 11, color: 'var(--purple)', cursor: 'pointer', padding: '4px 8px', border: '0.5px solid var(--purple)', borderRadius: 4 }}
                 >
                   +Add

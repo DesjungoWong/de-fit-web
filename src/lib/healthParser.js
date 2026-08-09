@@ -378,18 +378,14 @@ export async function parseHealthConnect(dbFile) {
       }
     }
 
-    // Find the most recent day with any data — chart anchors here, not on today
-    const allDays = new Set([
-      ...Object.keys(stepsByDay),
-      ...Object.keys(calByDay),
-      ...Object.keys(hydByDay)
-    ])
-    const sortedDays = [...allDays].map(Number).sort((a, b) => b - a)
-    const anchorDs = sortedDays.length ? sortedDays[0] : todayDs
+    // Anchor chart to most recent STEPS day specifically — prevents mismatch with
+    // other metrics that may have more recent timestamps
+    const stepsKeys = Object.keys(stepsByDay).map(Number).sort((a, b) => b - a)
+    const stepsAnchorDs = stepsKeys.length ? stepsKeys[0] : todayDs
 
-    // Build last7 anchored to the most recent data date
+    // Build last7 anchored to the most recent STEPS date
     const last7 = Array.from({ length: 7 }, (_, i) => ({
-      dayStart: anchorDs - (6 - i) * DAY,
+      dayStart: stepsAnchorDs - (6 - i) * DAY,
       steps: 0, activeCalories: 0, hydration: 0
     }))
     last7.forEach(b => {
@@ -398,17 +394,18 @@ export async function parseHealthConnect(dbFile) {
       b.hydration = parseFloat(hydByDay[b.dayStart] || 0)
     })
 
-    function bestDay(byDay) {
-      if (byDay[todayDs]) return byDay[todayDs]
-      return sortedDays.length ? (byDay[sortedDays[0]] || 0) : 0
-    }
+    // Steps: always use the most recent step day (avoids timezone-key mismatch with todayDs)
+    const steps = stepsKeys.length ? Math.round(stepsByDay[stepsKeys[0]]) : 0
 
-    const steps = Math.round(bestDay(stepsByDay))
-    const activeCalories = Math.round(bestDay(calByDay))
-    const hydration = parseFloat(bestDay(hydByDay) || 0).toFixed(2)
+    // Calories / hydration: most recent day
+    const calKeys = Object.keys(calByDay).map(Number).sort((a, b) => b - a)
+    const hydKeys = Object.keys(hydByDay).map(Number).sort((a, b) => b - a)
+    const activeCalories = calKeys.length ? Math.round(calByDay[calKeys[0]]) : 0
+    const hydration = hydKeys.length ? parseFloat(hydByDay[hydKeys[0]] || 0).toFixed(2) : '0.00'
+
     const bmi = weight ? (parseFloat(weight) / (1.70 * 1.70)).toFixed(1) : null
 
-    debugLog.push({ event: 'result', steps, heartRate, sleep, weight, activeCalories, hydration, anchorDate: new Date(anchorDs).toISOString().slice(0, 10) })
+    debugLog.push({ event: 'result', steps, heartRate, sleep, weight, activeCalories, hydration, stepsAnchorDate: new Date(stepsAnchorDs).toISOString().slice(0, 10) })
 
     return { steps, heartRate, sleep, weight, activeCalories, hydration, bmi, last7, importedAt: Date.now(), debugLog }
 

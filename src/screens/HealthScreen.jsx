@@ -159,13 +159,11 @@ export default function HealthScreen() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 6, marginBottom: 8 }}>
         <MetricTile label="Steps" value={s(m.steps?.toLocaleString())} color="var(--green)"
           sub={m.steps > 0 ? `${Math.round((m.steps / 10000) * 100)}% of 10k goal` : null} />
-        <MetricTile label="Heart Rate" value={s(m.heartRate)} unit="bpm" color="#FF5C7A"
+        <MetricTile label="Resting Heart Rate" value={s(m.heartRate)} unit="bpm" color="#FF5C7A"
           sub={m.heartRate ? (m.heartRate < 60 ? 'Low' : m.heartRate < 80 ? 'Normal' : 'Elevated') : null} />
         <MetricTile label="Sleep" value={s(m.sleep)} unit="hrs" color="var(--softPurple)"
           sub={m.sleep ? (parseFloat(m.sleep) >= 7 ? 'On target' : 'Below 7hr target') : null} />
         <MetricTile label="Weight" value={s(m.weight)} unit="kg" color="var(--gold)" />
-        <MetricTile label="Active Cal" value={s(m.activeCalories ? m.activeCalories.toLocaleString() : null)} unit="kcal" color="var(--purple)" />
-        <MetricTile label="Hydration" value={m.hydration && m.hydration !== '0.00' ? s(m.hydration) : '—'} unit="L" color="var(--blue)" />
       </div>
 
       {/* BMI */}
