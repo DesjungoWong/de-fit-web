@@ -62,6 +62,11 @@ export const hpbFoods = [
   { id: 48, name: 'Tau Huay', calories: 80, protein: 5, carbs: 10, fat: 2, servingSize: '150g', category: 'snacks' },
   { id: 49, name: 'Ice Kachang', calories: 180, protein: 2, carbs: 42, fat: 1, servingSize: '300g', category: 'snacks' },
   { id: 50, name: 'Chendol', calories: 260, protein: 3, carbs: 52, fat: 5, servingSize: '350g', category: 'snacks' },
+
+  // My Favourites (pre-loaded custom items)
+  { id: 51, name: '2 Half Boiled Eggs', calories: 130, protein: 11, carbs: 1, fat: 9, servingSize: '2 eggs (~100g)', category: 'favourites' },
+  { id: 52, name: 'Americano', calories: 10, protein: 1, carbs: 1, fat: 0, servingSize: '240ml', category: 'favourites' },
+  { id: 53, name: 'Whey Protein Shake 27g', calories: 120, protein: 27, carbs: 3, fat: 1, servingSize: '1 scoop (30g in water)', category: 'favourites' },
 ]
 
-export const categories = ['All', 'hawker', 'noodles', 'indian', 'malay', 'western', 'japanese', 'drinks', 'snacks']
+export const categories = ['All', 'favourites', 'hawker', 'noodles', 'indian', 'malay', 'western', 'japanese', 'drinks', 'snacks']

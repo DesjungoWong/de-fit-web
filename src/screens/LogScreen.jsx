@@ -1,7 +1,24 @@
 import React, { useState, useRef } from 'react'
-import { useDayStore } from '../store/dayStore'
+import { useDayStore, getFavourites, toggleFavourite } from '../store/dayStore'
 import { estimateFood, estimateFoodText } from '../api/claude'
 import { hpbFoods, categories } from '../data/hpbFoods'
+
+function FoodRow({ f, isFav, onAdd, onToggleFav }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: '0.5px solid var(--border)' }}>
+      <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => onAdd(f)}>
+        <div style={{ fontSize: 13, color: 'var(--text)' }}>{f.name}</div>
+        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{f.servingSize} · P {f.protein}g · C {f.carbs}g · F {f.fat}g</div>
+      </div>
+      <div style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: 'var(--purple)', marginLeft: 10, cursor: 'pointer' }} onClick={() => onAdd(f)}>{f.calories}</div>
+      <div
+        onClick={e => onToggleFav(f.id, e)}
+        style={{ marginLeft: 10, fontSize: 16, cursor: 'pointer', color: isFav ? '#FFB800' : 'var(--border)', transition: 'color .15s', lineHeight: 1, padding: '2px 4px' }}
+        title={isFav ? 'Remove from favourites' : 'Add to favourites'}
+      >★</div>
+    </div>
+  )
+}
 
 function ResultCard({ items, onAdd, onAddDone }) {
   const [selected, setSelected] = useState(() => new Set(items.map((_, i) => i)))
@@ -88,15 +105,26 @@ export default function LogScreen() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [favs, setFavs] = useState(() => getFavourites())
   const fileRef = useRef()
 
-  const catLabels = { All: 'All', hawker: 'Hawker', noodles: 'Noodles', indian: 'Indian', malay: 'Malay', western: 'Western', japanese: 'Japanese', drinks: 'Drinks', snacks: 'Snacks' }
+  const catLabels = { All: 'All', favourites: '★ Favourites', hawker: 'Hawker', noodles: 'Noodles', indian: 'Indian', malay: 'Malay', western: 'Western', japanese: 'Japanese', drinks: 'Drinks', snacks: 'Snacks' }
+
+  function handleToggleFav(foodId, e) {
+    e.stopPropagation()
+    setFavs(toggleFavourite(foodId))
+  }
 
   const filtered = hpbFoods.filter(f => {
-    const matchCat = category === 'All' || f.category === category
+    const matchCat = category === 'All' ? f.category !== 'favourites' : f.category === category || (category === 'favourites' && favs.has(f.id))
     const matchSearch = !search || f.name.toLowerCase().includes(search.toLowerCase())
     return matchCat && matchSearch
   })
+
+  // Pinned favourites strip (shown when not already in favourites tab)
+  const pinnedFavs = category !== 'favourites' && !search
+    ? hpbFoods.filter(f => favs.has(f.id))
+    : []
 
   function handleAdd(item) {
     addEntry({ ...item, meal: 'Meal' })
@@ -194,21 +222,24 @@ export default function LogScreen() {
             ))}
           </div>
 
+          {/* Pinned favourites strip */}
+          {pinnedFavs.length > 0 && (
+            <>
+              <div style={{ fontSize: 9, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 4 }}>★ Favourites</div>
+              {pinnedFavs.map(f => (
+                <FoodRow key={`fav-${f.id}`} f={f} isFav onAdd={handleAdd} onToggleFav={handleToggleFav} />
+              ))}
+              <div style={{ height: 1, background: 'var(--border)', margin: '8px 0 10px' }} />
+            </>
+          )}
+
           {/* Food list */}
           {filtered.map(f => (
-            <div
-              key={f.id}
-              style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: '0.5px solid var(--border)', cursor: 'pointer' }}
-              onClick={() => handleAdd(f)}
-            >
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, color: 'var(--text)' }}>{f.name}</div>
-                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{f.servingSize} · P {f.protein}g · C {f.carbs}g · F {f.fat}g</div>
-              </div>
-              <div style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: 'var(--purple)', marginLeft: 10 }}>{f.calories}</div>
-            </div>
+            <FoodRow key={f.id} f={f} isFav={favs.has(f.id)} onAdd={handleAdd} onToggleFav={handleToggleFav} />
           ))}
-          {filtered.length === 0 && <div style={{ color: 'var(--dim)', fontSize: 13, paddingTop: 20 }}>No foods found. Try the Scan tab to use AI estimation.</div>}
+          {filtered.length === 0 && pinnedFavs.length === 0 && (
+            <div style={{ color: 'var(--dim)', fontSize: 13, paddingTop: 20 }}>No foods found. Try the Scan tab to use AI estimation.</div>
+          )}
         </div>
       )}
 

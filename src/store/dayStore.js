@@ -102,3 +102,17 @@ export function getSettings() {
 export function saveSettings(s) {
   try { localStorage.setItem(SETTINGS_KEY(), JSON.stringify(s)) } catch {}
 }
+
+// ── Favourites (per-user set of food IDs) ──────────────────────────────────
+const FAV_KEY = () => `defit_favs_${userId()}`
+
+export function getFavourites() {
+  try { return new Set(JSON.parse(localStorage.getItem(FAV_KEY())) || [51, 52, 53]) } catch { return new Set([51, 52, 53]) }
+}
+
+export function toggleFavourite(foodId) {
+  const favs = getFavourites()
+  favs.has(foodId) ? favs.delete(foodId) : favs.add(foodId)
+  localStorage.setItem(FAV_KEY(), JSON.stringify([...favs]))
+  return new Set(favs)
+}
