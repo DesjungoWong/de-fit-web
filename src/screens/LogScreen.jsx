@@ -49,16 +49,37 @@ function MiniCalendar({ selectedDate, onSelect, onClose }) {
 }
 
 function FoodRow({ f, isFav, onAdd, onToggleFav }) {
+  const [added, setAdded] = useState(false)
+
+  function handleAdd() {
+    if (added) return
+    onAdd(f)
+    setAdded(true)
+    setTimeout(() => setAdded(false), 1500)
+  }
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: '0.5px solid var(--border)' }}>
-      <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => onAdd(f)}>
+      <div style={{ flex: 1, cursor: 'pointer' }} onClick={handleAdd}>
         <div style={{ fontSize: 13, color: 'var(--text)' }}>{f.name}</div>
         <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{f.servingSize} · P {f.protein}g · C {f.carbs}g · F {f.fat}g</div>
       </div>
-      <div style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: 'var(--purple)', marginLeft: 10, cursor: 'pointer' }} onClick={() => onAdd(f)}>{f.calories}</div>
+      <div
+        onClick={handleAdd}
+        style={{
+          marginLeft: 10, cursor: added ? 'default' : 'pointer',
+          minWidth: 54, textAlign: 'right',
+          transition: 'all .2s'
+        }}
+      >
+        {added
+          ? <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600, letterSpacing: '.04em' }}>✓ Added</span>
+          : <span style={{ fontFamily: 'Georgia,serif', fontSize: 15, fontWeight: 700, color: 'var(--purple)' }}>{f.calories}</span>
+        }
+      </div>
       <div
         onClick={e => onToggleFav(f.id, e)}
-        style={{ marginLeft: 10, fontSize: 16, cursor: 'pointer', color: isFav ? '#FFB800' : 'var(--border)', transition: 'color .15s', lineHeight: 1, padding: '2px 4px' }}
+        style={{ marginLeft: 8, fontSize: 16, cursor: 'pointer', color: isFav ? '#FFB800' : 'var(--border)', transition: 'color .15s', lineHeight: 1, padding: '2px 4px' }}
         title={isFav ? 'Remove from favourites' : 'Add to favourites'}
       >★</div>
     </div>
