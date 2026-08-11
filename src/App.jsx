@@ -6,9 +6,8 @@ import HealthScreen from './screens/HealthScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import ReportsScreen from './screens/ReportsScreen'
 import LoginScreen from './screens/LoginScreen'
-import { clearCurrentUser, supabase } from './store/authStore'
+import { getCurrentUser, clearCurrentUser } from './store/authStore'
 import { reinitForUser } from './store/dayStore'
-import { loadAllUserData } from './lib/db'
 
 const DeLogo = () => (
   <svg width="26" height="26" viewBox="0 0 72 72" aria-hidden="true">
@@ -22,76 +21,26 @@ const DeLogo = () => (
   </svg>
 )
 
-function adaptUser(supabaseUser) {
-  return {
-    id: supabaseUser.id,
-    email: supabaseUser.email,
-    username: supabaseUser.email?.split('@')[0] || 'user'
-  }
-}
-
 export default function App() {
   const [tab, setTab] = useState('today')
   const [isDark, setIsDark] = useState(() => localStorage.getItem('defit_theme') !== 'light')
-  const [currentUser, setCurrentUser] = useState(null)
-  const [authLoading, setAuthLoading] = useState(true)
+  const [currentUser, setCurrentUser2] = useState(() => getCurrentUser())
 
   useEffect(() => {
     applyTheme(isDark ? dark : light)
     localStorage.setItem('defit_theme', isDark ? 'dark' : 'light')
   }, [isDark])
 
-  // Check existing session on mount, subscribe to future auth changes
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        const u = adaptUser(session.user)
-        setCurrentUser(u)
-        reinitForUser()
-        loadAllUserData(u.id).then(() => reinitForUser()).catch(() => {})
-      }
-      setAuthLoading(false)
-    })
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setCurrentUser(adaptUser(session.user))
-      } else {
-        setCurrentUser(null)
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  async function handleLogin(user) {
-    setCurrentUser(user)
+  function handleLogin() {
+    const u = getCurrentUser()
+    setCurrentUser2(u)
     reinitForUser()
-    try {
-      await loadAllUserData(user.id)
-      reinitForUser()
-    } catch {}
   }
 
-  async function handleLogout() {
-    await clearCurrentUser()
+  function handleLogout() {
+    clearCurrentUser()
     reinitForUser()
-    setCurrentUser(null)
-    setTab('today')
-  }
-
-  // Auth check splash — brief, no flicker
-  if (authLoading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100dvh', background: 'var(--bg)' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, color: 'var(--text)' }}>
-          <DeLogo />
-          <div style={{ fontFamily: 'Georgia, serif', fontSize: 18, fontStyle: 'italic' }}>
-            <span style={{ color: 'var(--purple)' }}>DE</span>.Fit
-          </div>
-        </div>
-      </div>
-    )
+    setCurrentUser2(null)
   }
 
   if (!currentUser) {
@@ -122,8 +71,8 @@ export default function App() {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.username}</span>
-          <div onClick={handleLogout} title="Sign out" style={{ fontSize: 14, color: 'var(--muted)', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, border: '0.5px solid var(--border)', lineHeight: 1 }}>↩</div>
+          <span style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.username}</span>
+          <div onClick={handleLogout} title="Logout" style={{ fontSize: 14, color: 'var(--muted)', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, border: '0.5px solid var(--border)', lineHeight: 1 }}>↩</div>
           <span style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: '.06em' }}>{isDark ? 'DARK' : 'LIGHT'}</span>
           <div onClick={() => setIsDark(d => !d)} style={{ width: 42, height: 23, borderRadius: 12, background: isDark ? 'var(--purple)' : '#ccc', position: 'relative', cursor: 'pointer', transition: 'background .2s' }}>
             <div style={{ position: 'absolute', top: 3, left: isDark ? 21 : 3, width: 17, height: 17, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
