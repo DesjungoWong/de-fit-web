@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { useDayStore, getFavourites, toggleFavourite } from '../store/dayStore'
+import { useDayStore, getFavourites, toggleFavourite, getCustomFoods, saveCustomFood, removeCustomFood } from '../store/dayStore'
 import { estimateFood, estimateFoodText } from '../api/claude'
 import { hpbFoods, categories } from '../data/hpbFoods'
 import { getCurrentUser } from '../store/authStore'
@@ -86,8 +86,9 @@ function FoodRow({ f, isFav, onAdd, onToggleFav }) {
   )
 }
 
-function ResultCard({ items, onAdd, onAddDone }) {
+function ResultCard({ items, onAdd, onAddDone, onFavsChanged }) {
   const [selected, setSelected] = useState(() => new Set(items.map((_, i) => i)))
+  const [starred, setStarred] = useState(() => new Set())
 
   function toggle(i) {
     setSelected(prev => {
@@ -97,8 +98,25 @@ function ResultCard({ items, onAdd, onAddDone }) {
     })
   }
 
+  function toggleStar(i, e) {
+    e.stopPropagation()
+    setStarred(prev => {
+      const next = new Set(prev)
+      next.has(i) ? next.delete(i) : next.add(i)
+      return next
+    })
+  }
+
   function addSelected() {
-    items.filter((_, i) => selected.has(i)).forEach(item => onAdd(item))
+    items.forEach((item, i) => {
+      if (selected.has(i)) onAdd(item)
+      if (starred.has(i)) {
+        // Save as custom food with stable ID based on name
+        const customId = `custom_${item.name.toLowerCase().replace(/\s+/g, '_')}`
+        saveCustomFood({ ...item, id: customId, category: 'favourites' })
+        onFavsChanged()
+      }
+    })
     onAddDone()
   }
 
@@ -106,9 +124,12 @@ function ResultCard({ items, onAdd, onAddDone }) {
 
   return (
     <div style={{ background: 'var(--panel)', borderRadius: 8, padding: 12, marginTop: 10 }}>
-      <div style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>Estimated nutrition · tap to select</div>
+      <div style={{ fontSize: 9, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--dim)', marginBottom: 8 }}>
+        Estimated nutrition · tap to select · ★ to save to favourites
+      </div>
       {items.map((item, i) => {
         const isOn = selected.has(i)
+        const isStar = starred.has(i)
         return (
           <div
             key={i}
@@ -121,7 +142,7 @@ function ResultCard({ items, onAdd, onAddDone }) {
               transition: 'background .15s, border-color .15s'
             }}
           >
-            {/* Checkbox circle */}
+            {/* Checkbox */}
             <div style={{
               width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
               border: `2px solid ${isOn ? 'var(--purple)' : 'var(--border)'}`,
@@ -138,6 +159,12 @@ function ResultCard({ items, onAdd, onAddDone }) {
               </div>
             </div>
             <span style={{ fontFamily: 'Georgia,serif', fontSize: 15, color: 'var(--purple)', fontWeight: 700, flexShrink: 0 }}>{item.calories}</span>
+            {/* Star to save to favourites */}
+            <span
+              onClick={e => toggleStar(i, e)}
+              style={{ fontSize: 17, color: isStar ? '#FFB800' : 'var(--border)', cursor: 'pointer', flexShrink: 0, lineHeight: 1, padding: '2px 2px 2px 6px', transition: 'color .15s' }}
+              title="Save to favourites"
+            >★</span>
           </div>
         )
       })}
@@ -153,7 +180,9 @@ function ResultCard({ items, onAdd, onAddDone }) {
           fontFamily: 'inherit', transition: 'background .15s'
         }}
       >
-        {selCount === 0 ? 'SELECT ITEMS TO ADD' : `ADD ${selCount} ITEM${selCount > 1 ? 'S' : ''} TO LOG`}
+        {selCount === 0
+          ? 'SELECT ITEMS TO ADD'
+          : `ADD ${selCount} ITEM${selCount > 1 ? 'S' : ''} TO LOG${starred.size > 0 ? ` · ★ SAVE ${starred.size}` : ''}`}
       </button>
     </div>
   )
@@ -214,7 +243,12 @@ export default function LogScreen() {
 
   function handleToggleFav(foodId, e) {
     e.stopPropagation()
-    setFavs(toggleFavourite(foodId))
+    const isCustom = getCustomFoods().find(f => f.id === foodId)
+    if (isCustom) {
+      setFavs(removeCustomFood(foodId))
+    } else {
+      setFavs(toggleFavourite(foodId))
+    }
   }
 
   const filtered = hpbFoods.filter(f => {
@@ -224,8 +258,12 @@ export default function LogScreen() {
   })
 
   // Pinned favourites strip (shown when not already in favourites tab)
+  const customFoods = getCustomFoods()
   const pinnedFavs = category !== 'favourites' && !search
-    ? hpbFoods.filter(f => favs.has(f.id))
+    ? [
+        ...hpbFoods.filter(f => favs.has(f.id)),
+        ...customFoods.filter(f => favs.has(f.id))
+      ]
     : []
 
   function handleAdd(item) {
@@ -442,7 +480,7 @@ export default function LogScreen() {
             )}
 
             {error && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 8 }}>{error}</div>}
-            {result && <ResultCard items={result} onAdd={handleAdd} onAddDone={handleAddDone} />}
+            {result && <ResultCard items={result} onAdd={handleAdd} onAddDone={handleAddDone} onFavsChanged={() => setFavs(getFavourites())} />}
           </div>
         </div>
       )}

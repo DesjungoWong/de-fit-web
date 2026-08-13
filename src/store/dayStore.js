@@ -116,3 +116,32 @@ export function toggleFavourite(foodId) {
   localStorage.setItem(FAV_KEY(), JSON.stringify([...favs]))
   return new Set(favs)
 }
+
+// ── Custom foods (AI-estimated items saved as favourites) ──────────────────
+const CUSTOM_KEY = () => `defit_custom_${userId()}`
+
+export function getCustomFoods() {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_KEY())) || [] } catch { return [] }
+}
+
+export function saveCustomFood(food) {
+  const foods = getCustomFoods()
+  if (!foods.find(f => f.id === food.id)) {
+    foods.unshift(food)
+    localStorage.setItem(CUSTOM_KEY(), JSON.stringify(foods))
+  }
+  // Also add to favourites
+  const favs = getFavourites()
+  favs.add(food.id)
+  localStorage.setItem(FAV_KEY(), JSON.stringify([...favs]))
+  return new Set(favs)
+}
+
+export function removeCustomFood(foodId) {
+  const foods = getCustomFoods().filter(f => f.id !== foodId)
+  localStorage.setItem(CUSTOM_KEY(), JSON.stringify(foods))
+  const favs = getFavourites()
+  favs.delete(foodId)
+  localStorage.setItem(FAV_KEY(), JSON.stringify([...favs]))
+  return new Set(favs)
+}
