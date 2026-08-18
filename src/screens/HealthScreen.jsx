@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useDayStore } from '../store/dayStore'
 import { parseHealthConnect } from '../lib/healthParser'
 import JSZip from 'jszip'
+import { track } from '../lib/analytics'
 
 async function extractDbFromZip(zipFile) {
   const zip = await JSZip.loadAsync(zipFile)
@@ -69,6 +70,7 @@ export default function HealthScreen() {
       setLoadingMsg('Reading health data…')
       const result = await parseHealthConnect(dbBlob)
       setHealth(result)
+      track('health_imported', { steps: result.steps || 0 })
     } catch (err) {
       setError('Could not read file: ' + err.message)
     }

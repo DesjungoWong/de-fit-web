@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useDayStore, getFavourites, toggleFavourite, getCustomFoods, saveCustomFood, removeCustomFood } from '../store/dayStore'
 import { estimateFood, estimateFoodText } from '../api/claude'
+import { trackFoodLog, track } from '../lib/analytics'
 import { hpbFoods, categories } from '../data/hpbFoods'
 import { getCurrentUser } from '../store/authStore'
 
@@ -268,6 +269,7 @@ export default function LogScreen() {
 
   function handleAdd(item) {
     addEntryToDate(item)
+    trackFoodLog(item)
   }
 
   function handleAddDone() {
@@ -286,7 +288,7 @@ export default function LogScreen() {
       const raw = await estimateFoodText(desc)
       const cleaned = raw.replace(/```json|```/g, '').trim()
       const parsed = JSON.parse(cleaned)
-      setResult(Array.isArray(parsed) ? parsed : [parsed])
+      const r = Array.isArray(parsed) ? parsed : [parsed]; setResult(r); track('scan_ai', { items: r.length })
     } catch (e) {
       setError('Could not parse estimate. Try rephrasing. ' + e.message)
     }
@@ -302,7 +304,7 @@ export default function LogScreen() {
       const raw = await estimateFood(imageDataUrl)
       const cleaned = raw.replace(/```json|```/g, '').trim()
       const parsed = JSON.parse(cleaned)
-      setResult(Array.isArray(parsed) ? parsed : [parsed])
+      const r = Array.isArray(parsed) ? parsed : [parsed]; setResult(r); track('scan_ai', { items: r.length })
     } catch (e) {
       setError('Could not analyse image. ' + e.message)
     }

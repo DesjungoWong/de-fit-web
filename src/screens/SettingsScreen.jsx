@@ -3,6 +3,7 @@ import { useDayStore } from '../store/dayStore'
 import { hasEnvKey } from '../api/claude'
 import { getSettings, saveSettings } from '../store/dayStore'
 import JSZip from 'jszip'
+import { getCurrentUser, makeUserAdmin, isAnyAdminSet } from '../store/authStore'
 import { parseHealthConnect } from '../lib/healthParser'
 
 async function extractDbFromZip(zipBlob) {
@@ -214,6 +215,44 @@ export default function SettingsScreen({ isDark, onToggle, onNavigate }) {
           ↑ Import now
         </div>
       </div>
+
+      <SectionHeader title="Admin" />
+      {(() => {
+        const me = getCurrentUser()
+        const alreadyAdmin = me?.admin
+        const anyAdmin = isAnyAdminSet()
+        const [promoted, setPromoted] = React.useState(false)
+        if (alreadyAdmin || promoted) {
+          return (
+            <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
+              <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 2 }}>Admin access active</div>
+              <div style={{ fontSize: 10, color: 'var(--dim)' }}>You can access the analytics dashboard via the ADMIN badge in the top bar.</div>
+            </div>
+          )
+        }
+        if (anyAdmin) {
+          return (
+            <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
+              <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 2 }}>Admin access</div>
+              <div style={{ fontSize: 10, color: 'var(--dim)' }}>An admin is already set. Log in with the admin account to access the dashboard.</div>
+            </div>
+          )
+        }
+        return (
+          <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
+            <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 3 }}>Set yourself as Admin</div>
+            <div style={{ fontSize: 10, color: 'var(--dim)', marginBottom: 10 }}>
+              One-time setup. Grants access to the analytics dashboard for your account.
+            </div>
+            <div
+              onClick={() => { makeUserAdmin(me.id); window.location.reload() }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--purple)', color: '#fff', borderRadius: 6, padding: '7px 16px', fontSize: 11, cursor: 'pointer', fontWeight: 500 }}
+            >
+              Activate Admin Access
+            </div>
+          </div>
+        )
+      })()}
 
       <SectionHeader title="About" />
 

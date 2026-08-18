@@ -6,8 +6,10 @@ import HealthScreen from './screens/HealthScreen'
 import SettingsScreen from './screens/SettingsScreen'
 import ReportsScreen from './screens/ReportsScreen'
 import LoginScreen from './screens/LoginScreen'
+import AdminScreen from './screens/AdminScreen'
 import { getCurrentUser, clearCurrentUser } from './store/authStore'
 import { reinitForUser } from './store/dayStore'
+import { upsertUser, track } from './lib/analytics'
 
 const DeLogo = () => (
   <svg width="26" height="26" viewBox="0 0 72 72" aria-hidden="true">
@@ -25,22 +27,34 @@ export default function App() {
   const [tab, setTab] = useState('today')
   const [isDark, setIsDark] = useState(() => localStorage.getItem('defit_theme') !== 'light')
   const [currentUser, setCurrentUser2] = useState(() => getCurrentUser())
+  const [showAdmin, setShowAdmin] = useState(false)
 
   useEffect(() => {
     applyTheme(isDark ? dark : light)
     localStorage.setItem('defit_theme', isDark ? 'dark' : 'light')
   }, [isDark])
 
+  // Track tab views
+  useEffect(() => {
+    if (currentUser) track('tab_view', { tab })
+  }, [tab, currentUser])
+
   function handleLogin() {
     const u = getCurrentUser()
     setCurrentUser2(u)
     reinitForUser()
+    // Sync user to Supabase + log login event
+    if (u) {
+      upsertUser(u)
+      track('login')
+    }
   }
 
   function handleLogout() {
     clearCurrentUser()
     reinitForUser()
     setCurrentUser2(null)
+    setShowAdmin(false)
   }
 
   if (!currentUser) {
@@ -49,6 +63,11 @@ export default function App() {
         <LoginScreen onLogin={handleLogin} />
       </div>
     )
+  }
+
+  // Show admin dashboard full-screen
+  if (showAdmin) {
+    return <AdminScreen onBack={() => setShowAdmin(false)} currentUser={currentUser} />
   }
 
   const screens = {
@@ -71,6 +90,12 @@ export default function App() {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {currentUser.admin && (
+            <div onClick={() => setShowAdmin(true)} title="Admin dashboard" style={{
+              fontSize: 9, background: 'rgba(161,0,255,0.15)', color: 'var(--purple)',
+              borderRadius: 4, padding: '3px 7px', cursor: 'pointer', letterSpacing: '.08em', fontWeight: 600
+            }}>ADMIN</div>
+          )}
           <span style={{ fontSize: 10, color: 'var(--muted)', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentUser.username}</span>
           <div onClick={handleLogout} title="Logout" style={{ fontSize: 14, color: 'var(--muted)', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, border: '0.5px solid var(--border)', lineHeight: 1 }}>↩</div>
           <span style={{ fontSize: 11, color: 'var(--muted)', letterSpacing: '.06em' }}>{isDark ? 'DARK' : 'LIGHT'}</span>

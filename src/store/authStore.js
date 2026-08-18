@@ -28,6 +28,19 @@ export function clearCurrentUser() {
   localStorage.removeItem(CURRENT_USER_KEY)
 }
 
+export function makeUserAdmin(userId) {
+  const users = getUsers()
+  const u = users.find(u => u.id === userId)
+  if (!u) return false
+  u.admin = true
+  localStorage.setItem(USERS_KEY, JSON.stringify(users))
+  return true
+}
+
+export function isAnyAdminSet() {
+  return getUsers().some(u => u.admin === true)
+}
+
 export function generateTotpSecret() {
   const bytes = new Uint8Array(20)
   crypto.getRandomValues(bytes)
