@@ -10,6 +10,7 @@ import AdminScreen from './screens/AdminScreen'
 import { getCurrentUser, clearCurrentUser } from './store/authStore'
 import { reinitForUser } from './store/dayStore'
 import { upsertUser, track } from './lib/analytics'
+import GameApp from './game/GameApp'
 
 const DeLogo = () => (
   <svg width="26" height="26" viewBox="0 0 72 72" aria-hidden="true">
@@ -28,11 +29,22 @@ export default function App() {
   const [isDark, setIsDark] = useState(() => localStorage.getItem('defit_theme') !== 'light')
   const [currentUser, setCurrentUser2] = useState(() => getCurrentUser())
   const [showAdmin, setShowAdmin] = useState(false)
+  const [showGame, setShowGame] = useState(() => window.location.hash === '#game')
 
   useEffect(() => {
     applyTheme(isDark ? dark : light)
     localStorage.setItem('defit_theme', isDark ? 'dark' : 'light')
   }, [isDark])
+
+  useEffect(() => {
+    const onHash = () => setShowGame(window.location.hash === '#game')
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  if (showGame) {
+    return <GameApp onExit={() => { window.location.hash = ''; setShowGame(false) }} />
+  }
 
   // Track tab views
   useEffect(() => {

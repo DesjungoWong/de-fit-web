@@ -216,6 +216,21 @@ export default function SettingsScreen({ isDark, onToggle, onNavigate }) {
         </div>
       </div>
 
+      <SectionHeader title="Extras" />
+
+      <div style={{ padding: '12px 16px', borderBottom: '0.5px solid var(--border)' }}>
+        <div style={{ fontSize: 13, color: 'var(--text)', marginBottom: 3 }}>🎮 Level Up: First Semester</div>
+        <div style={{ fontSize: 10, color: 'var(--dim)', marginBottom: 10 }}>
+          A short visual novel bonus game.
+        </div>
+        <div
+          onClick={() => { window.location.hash = 'game' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--purple)', color: '#fff', borderRadius: 6, padding: '7px 16px', fontSize: 11, cursor: 'pointer', fontWeight: 500 }}
+        >
+          ▶ Play
+        </div>
+      </div>
+
       <SectionHeader title="Admin" />
       {(() => {
         const me = getCurrentUser()
