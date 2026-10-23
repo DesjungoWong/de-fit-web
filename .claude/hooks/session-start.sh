@@ -9,7 +9,7 @@ fi
 cd "$CLAUDE_PROJECT_DIR"
 
 # Project dependencies
-npm install --no-audit --no-fund
+npm install --no-audit --no-fund --no-save
 
 # FFmpeg: cuts + mixes video
 if ! command -v ffmpeg >/dev/null 2>&1; then
