@@ -1,0 +1,77 @@
+<template>
+  <style>
+    @font-face { font-family: "Instrument Serif"; src: url("assets/fonts/instrument-serif.woff2") format("woff2"); font-weight: 400; }
+    @font-face { font-family: "Instrument Sans"; src: url("assets/fonts/instrument-sans.woff2") format("woff2"); font-weight: 400 700; }
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: "Instrument Sans", sans-serif; color: #18142a; }
+    #cat-wrap { position: absolute; inset: 0; }
+    #cat-paper { position: absolute; inset: 0; background: #f3f1f7; }
+    .cat-in { position: absolute; left: 150px; right: 150px; top: 70px; }
+    #cat-eyebrow { font-family: "JetBrains Mono", monospace; font-size: 27px; letter-spacing: 0.16em; text-transform: uppercase; color: #6e43d9; }
+    #cat-h2 { font-family: "Instrument Serif", serif; font-weight: 400; font-size: 76px; line-height: 1; margin: 10px 0 0; }
+    #cat-h2 em { font-style: normal; color: #6e43d9; }
+    .cat-grid { position: absolute; left: 150px; right: 150px; top: 236px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 34px; }
+    .cat-card { background: #ffffff; border: 1.5px solid #ddd8e8; border-radius: 18px; overflow: hidden; box-shadow: 0 18px 40px rgba(40, 24, 90, 0.1); }
+    .cat-art { background: #1b1530; height: 200px; display: flex; }
+    .cat-art svg { width: 100%; height: 100%; }
+    .cat-cb { padding: 16px 22px 18px; }
+    .cat-cid { font: 500 22px "JetBrains Mono", monospace; color: #5e5873; letter-spacing: 0.04em; }
+    .cat-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .cat-ct { font-family: "Instrument Serif", serif; font-size: 42px; line-height: 1.05; margin-top: 4px; }
+        .cat-cc { font-size: 28px; color: #5e5873; margin-top: 4px; white-space: nowrap; }
+    .cat-pill { flex: none; font: 700 19px "JetBrains Mono", monospace; letter-spacing: 0.06em; text-transform: uppercase; padding: 5px 12px; border-radius: 99px; color: #fff; }
+    .m-Production { background: #0f8c7e; } .m-Pilot { background: #2f6fd6; } .m-Indev { background: #b7791f; }
+  </style>
+  <div id="root" data-composition-id="catalogue" data-width="1920" data-height="1080">
+    <div id="cat-wrap" class="clip" data-start="0" data-duration="4.3" data-layout-ignore>
+      <div id="cat-paper"></div>
+    </div>
+    <div id="cat-head" class="cat-in clip" data-start="0" data-duration="4.3">
+      <div id="cat-eyebrow">Full catalogue · 16 assets</div>
+      <h2 id="cat-h2">Everything else we can <em>reuse</em></h2>
+    </div>
+    <div id="cat-grid" class="cat-grid clip" data-start="0" data-duration="4.3">
+      <div class="cat-card" id="cat-c0"><div class="cat-art" data-layout-ignore data-art="genie"></div><div class="cat-cb"><div class="cat-top"><div class="cat-cid">A32 · Platform</div><span class="cat-pill m-Production">Production</span></div><div class="cat-ct">GENiE 3.0</div><div class="cat-cc">Gen AI App Store for the SDLC</div></div></div>
+      <div class="cat-card" id="cat-c1"><div class="cat-art" data-layout-ignore data-art="docs"></div><div class="cat-cb"><div class="cat-top"><div class="cat-cid">A01 · Platform</div><span class="cat-pill m-Production">Production</span></div><div class="cat-ct">META</div><div class="cat-cc">AI archival metadata extraction</div></div></div>
+      <div class="cat-card" id="cat-c2"><div class="cat-art" data-layout-ignore data-art="voice"></div><div class="cat-cb"><div class="cat-top"><div class="cat-cid">A16 · Platform</div><span class="cat-pill m-Pilot">Pilot</span></div><div class="cat-ct">AVA Voice Platform</div><div class="cat-cc">Multi-agent voicebot</div></div></div>
+      <div class="cat-card" id="cat-c3"><div class="cat-art" data-layout-ignore data-art="gpu"></div><div class="cat-cb"><div class="cat-top"><div class="cat-cid">A02 · Accelerator / toolkit</div><span class="cat-pill m-Production">Production</span></div><div class="cat-ct">GDC Air-gap Kit</div><div class="cat-cc">Air-gapped GPU deployment kit</div></div></div>
+      <div class="cat-card" id="cat-c4"><div class="cat-art" data-layout-ignore data-art="holo"></div><div class="cat-cb"><div class="cat-top"><div class="cat-cid">A20 · Application</div><span class="cat-pill m-Indev">In development</span></div><div class="cat-ct">AVA Holobox</div><div class="cat-cc">Full-body talking avatar</div></div></div>
+      <div class="cat-card" id="cat-c5"><div class="cat-art" data-layout-ignore data-art="crawl"></div><div class="cat-cb"><div class="cat-top"><div class="cat-cid">A38 · Platform</div><span class="cat-pill m-Pilot">Pilot</span></div><div class="cat-ct">GeBIZ Intelligence</div><div class="cat-cc">Tender intelligence platform</div></div></div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      /* card illustrations from the page (schematic SVGs), evidence numbers removed */
+      var C = { bg: "#1B1530", p: "#2A2244", line: "#4A4066", sand: "#F1ECFA", clay: "#B9A7E0", gold: "#E3B65A", green: "#45D6C2", blue: "#8FB4F0", wine: "#F08A8A", plum: "#C08BFF" };
+      function svg(inner) { return '<svg viewBox="0 0 320 200" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><rect width="320" height="200" fill="' + C.bg + '"/>' + inner + "</svg>"; }
+      function r(x, y, w, h, f, s, rx) { return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="' + (rx == null ? 3 : rx) + '" fill="' + (f || C.p) + '" stroke="' + (s || C.line) + '" stroke-width="1.2"/>'; }
+      function l(x1, y1, x2, y2, c, w, d) { return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '" stroke="' + (c || C.line) + '" stroke-width="' + (w || 1.5) + '"' + (d ? ' stroke-dasharray="4 4"' : "") + "/>"; }
+      function ci(x, y, rad, f, s) { return '<circle cx="' + x + '" cy="' + y + '" r="' + rad + '" fill="' + (f || C.p) + '" stroke="' + (s || "none") + '" stroke-width="1.5"/>'; }
+      function tx(x, y, s, c, sz) { return '<text x="' + x + '" y="' + y + '" fill="' + (c || C.sand) + '" font-family="JetBrains Mono,monospace" font-size="' + (sz || 9) + '" text-anchor="middle">' + s + "</text>"; }
+      function bars(x, y, n, w, c) { var o = ""; for (var i = 0; i < n; i++) { o += r(x, y + i * 7, w - (i % 3) * 10, 3, c || C.line, "none", 1); } return o; }
+      function arrow(x1, y, x2, c) { return l(x1, y, x2 - 4, y, c || C.clay, 1.5) + '<path d="M' + (x2 - 6) + " " + (y - 4) + " L" + x2 + " " + y + " L" + (x2 - 6) + " " + (y + 4) + 'Z" fill="' + (c || C.clay) + '"/>'; }
+      var ART = {
+        docs: function () { var o = ""; for (var i = 0; i < 3; i++) { o += r(26 + i * 10, 40 + i * 10, 70, 90, i == 2 ? "#3A3058" : C.p); } o += bars(48, 72, 5, 48) + tx(71, 160, "MICROFILM · PDF · TIF"); o += arrow(120, 95, 160); o += r(170, 45, 124, 100, C.p, C.plum); for (var j = 0; j < 5; j++) { o += l(170, 65 + j * 16, 294, 65 + j * 16, C.line, 1); } o += l(212, 45, 212, 145, C.line, 1) + l(254, 45, 254, 145, C.line, 1); o += r(170, 45, 124, 20, "#3B2A63", C.plum) + tx(232, 59, "METADATA", C.plum); return svg(o); },
+        gpu: function () { var o = ""; for (var k = 0; k < 3; k++) { var x = 40 + k * 86; o += r(x, 36, 70, 128, C.p); for (var i = 0; i < 5; i++) { o += r(x + 8, 46 + i * 22, 54, 14, "#231C3A"); o += ci(x + 16, 53 + i * 22, 2.5, i < 4 ? C.green : C.gold); o += bars(x + 24, 50 + i * 22, 1, 30); } } o += l(20, 178, 300, 178, C.wine, 2, true) + tx(160, 192, "NO INTERNET · AIR-GAPPED", C.wine); return svg(o); },
+        voice: function () { var o = ""; for (var i = 0; i < 34; i++) { var h = 8 + Math.abs(Math.sin(i * 0.7)) * 44 + (i % 5) * 3; o += r(30 + i * 7.6, 100 - h / 2, 4, h, i > 12 && i < 22 ? C.green : C.plum, "none", 2); } o += r(20, 150, 64, 26, C.p, C.blue) + tx(52, 167, "STT", C.blue) + arrow(84, 163, 124) + r(128, 150, 64, 26, C.p, C.plum) + tx(160, 167, "LLM", C.plum) + arrow(192, 163, 232) + r(236, 150, 64, 26, C.p, C.green) + tx(268, 167, "TTS", C.green); o += tx(160, 26, "MULTI-AGENT VOICE CONSOLE", C.clay); return svg(o); },
+        holo: function () { var o = r(90, 22, 140, 160, "#201936", C.blue, 4); o += '<rect x="96" y="28" width="128" height="148" fill="' + C.blue + '" opacity=".08"/>'; o += ci(160, 70, 14, C.blue) + '<path d="M134 150 Q160 86 186 150Z" fill="' + C.blue + '" opacity=".85"/>'; o += r(100, 156, 120, 14, "#231C3A", "none", 2) + tx(160, 166, "captions…", C.clay, 8); o += tx(160, 195, "TRANSPARENT LCD HOLOBOX", C.green, 9); return svg(o); },
+        crawl: function () { var o = ci(80, 95, 46, C.p, C.clay); for (var i = -2; i <= 2; i++) { o += '<ellipse cx="80" cy="95" rx="' + (46 - Math.abs(i) * 14) + '" ry="46" fill="none" stroke="' + C.line + '"/>'; o += l(34, 95 + i * 18, 126, 95 + i * 18, C.line, 1); } o += arrow(132, 95, 168); var v = [30, 52, 44, 70, 62, 88]; for (var j = 0; j < 6; j++) { o += r(180 + j * 20, 150 - v[j], 13, v[j], j == 5 ? C.plum : C.green, "none", 1); } o += l(176, 150, 302, 150, C.clay, 1); o += tx(240, 170, "VENDOR LEAGUE", C.clay, 8) + tx(80, 170, "GeBIZ", C.clay, 9); return svg(o); },
+        genie: function () { var o = ""; var s = ["CODE", "SPEC", "ASSESS", "COMPLY", "TEST", "CONVERT"]; for (var i = 0; i < 6; i++) { var x = 22 + (i % 3) * 98, y = i < 3 ? 40 : 112; o += r(x, y, 82, 46, C.p, i == 3 ? C.plum : C.clay, 4) + tx(x + 41, y + 27, s[i], i == 3 ? C.plum : C.sand, 10); if (i % 3 < 2) o += arrow(x + 82, y + 23, x + 98); } o += l(262, 86, 262, 99, C.clay, 1.5) + l(60, 99, 262, 99, C.clay, 1.5) + l(60, 99, 60, 112, C.clay, 1.5); o += tx(160, 180, "9 SDLC + COMPLIANCE WORKFLOWS", C.green, 10); return svg(o); }
+      };
+      document.querySelectorAll("#cat-grid .cat-art").forEach(function (el) { el.innerHTML = ART[el.getAttribute("data-art")](); });
+
+      var tl = gsap.timeline({ paused: true });
+      // the light comes up: paper rises over the AISLE stage
+      tl.fromTo("#cat-paper", { clipPath: "inset(100% 0% 0% 0%)" }, { clipPath: "inset(0% 0% 0% 0%)", duration: 0.5, ease: "power2.inOut" }, 0);
+      tl.fromTo("#cat-eyebrow", { opacity: 0, filter: "blur(6px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.18, ease: "power3.out" }, 0.34);
+      tl.fromTo("#cat-h2", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, ease: "power3.out" }, 0.42);
+      // beat-grid: cards on half-beats from 15.84s (local 0.54) to 17.20s; set lands on the 17.47s strong cue
+      [0.54, 0.81, 1.08, 1.35, 1.63, 1.9].forEach(function (at, i) {
+        tl.fromTo("#cat-c" + i, { opacity: 0, y: 70, filter: "blur(6px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "expo.out" }, at);
+      });
+      // hand-off to the outro: cards and title blur back
+      tl.to(["#cat-c0", "#cat-c1", "#cat-c2", "#cat-c3", "#cat-c4", "#cat-c5"], { opacity: 0, filter: "blur(10px)", y: -20, duration: 0.25, stagger: 0.03, ease: "power3.in" }, 3.6);
+      tl.to(["#cat-eyebrow", "#cat-h2"], { opacity: 0, filter: "blur(8px)", duration: 0.2, ease: "power2.in" }, 3.65);
+      window.__timelines["catalogue"] = tl;
+    })();
+  </script>
+</template>

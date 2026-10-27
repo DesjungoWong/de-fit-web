@@ -1,0 +1,39 @@
+<template>
+  <style>
+    @font-face { font-family: "Instrument Serif"; src: url("assets/fonts/instrument-serif.woff2") format("woff2"); font-weight: 400; }
+    @font-face { font-family: "Instrument Sans"; src: url("assets/fonts/instrument-sans.woff2") format("woff2"); font-weight: 400 700; }
+    #root { position: absolute; inset: 0; overflow: hidden; font-family: "Instrument Sans", sans-serif; color: #18142a; }
+    #out-bg { position: absolute; inset: 0; background: #f3f1f7; }
+    #out-logo { position: absolute; left: 150px; top: 80px; font-weight: 700; font-size: 30px; line-height: 1; letter-spacing: 0.08em; }
+    #out-logo span { display: block; font-weight: 500; opacity: 0.7; margin-top: 6px; }
+    #out-main { position: absolute; left: 0; right: 0; top: 365px; text-align: center; }
+    #out-title { font-family: "Instrument Serif", serif; font-weight: 400; font-size: 200px; line-height: 1; }
+    #out-title .w { display: inline-block; }
+    #out-title .a { color: #6e43d9; }
+    #out-title .b { color: #0f8c7e; }
+    #out-plus { margin-top: 34px; font-family: "JetBrains Mono", monospace; font-size: 34px; letter-spacing: 0.14em; text-transform: uppercase; color: #6e43d9; }
+    #out-name { margin-top: 26px; font-size: 30px; color: #5e5873; }
+  </style>
+  <div id="root" data-composition-id="outro" data-width="1920" data-height="1080">
+    <div id="out-bg" class="clip" data-start="0" data-duration="3.2" data-layout-ignore></div>
+    <div id="out-logo" class="clip" data-start="0" data-duration="3.2">ACCENTURE SG<span>ASSET STORY</span></div>
+    <div id="out-main" class="clip" data-start="0" data-duration="3.2">
+      <div id="out-title"><span class="w a">Atrium</span> <span class="w">and</span> <span class="w b">AISLE</span></div>
+      <div id="out-plus">+ 16 assets we can reuse</div>
+      <div id="out-name">Citizen Services Asset Catalogue</div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var tl = gsap.timeline({ paused: true });
+      // beat-locked: 19.66s strong cue (abs 19.4 + 0.26) — the title lands
+      gsap.utils.toArray("#out-title .w").forEach(function (el, i) {
+        tl.fromTo(el, { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, ease: "power4.out" }, 0.22 + i * 0.09);
+      });
+      tl.fromTo("#out-plus", { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, ease: "power3.out" }, 0.72);
+      tl.fromTo("#out-name", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 0.92);
+      tl.fromTo("#out-logo", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 0.5);
+      window.__timelines["outro"] = tl;
+    })();
+  </script>
+</template>

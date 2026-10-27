@@ -1,0 +1,125 @@
+<template>
+  <style>
+    @font-face { font-family: "Instrument Serif"; src: url("assets/fonts/instrument-serif.woff2") format("woff2"); font-weight: 400; }
+    @font-face { font-family: "Instrument Sans"; src: url("assets/fonts/instrument-sans.woff2") format("woff2"); font-weight: 400 700; }
+    #root { position: absolute; inset: 0; overflow: hidden; color: #e6f4f2; font-family: "Instrument Sans", sans-serif; }
+    #ais-wrap { position: absolute; inset: 0; }
+    #ais-iris { position: absolute; inset: 0; background: #0b1724; }
+    #ais-cv { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+    .ais-hl { position: absolute; left: 0; right: 0; top: 118px; text-align: center; padding: 0 180px; }
+    .ais-kick { font-family: "JetBrains Mono", monospace; font-size: 28px; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.72; }
+    .ais-h2 { font-family: "Instrument Serif", serif; font-weight: 400; text-transform: uppercase; line-height: 0.95; font-size: 118px; margin-top: 14px; }
+    .ais-h2 .sy { display: inline-block; transform: scaleY(1.08); }
+    .ais-h2 em { font-style: normal; color: #45d6c2; }
+    .ais-sub { margin: 22px auto 0; max-width: 48ch; font-size: 31px; opacity: 0.84; }
+  </style>
+  <div id="root" data-composition-id="aisle" data-width="1920" data-height="1080">
+    <div id="ais-wrap" class="clip" data-start="0" data-duration="6.2" data-layout-ignore>
+      <div id="ais-iris">
+        <canvas id="ais-cv" width="1920" height="1080"></canvas>
+      </div>
+    </div>
+
+    <div id="ais-hl1" class="ais-hl clip" data-start="0.4" data-duration="2.8" data-layout-allow-overlap>
+      <div class="ais-kick" id="ais-k1">AISLE · 01 / 06 · Intro</div>
+      <div class="ais-h2" id="ais-h1"><span class="sy">One <em>case</em> backbone</span></div>
+      <p class="ais-sub" id="ais-s1">Incident to prosecution.</p>
+    </div>
+
+    <div id="ais-hl2" class="ais-hl clip" data-start="3.0" data-duration="3.2" data-layout-allow-overlap>
+      <div class="ais-kick" id="ais-k2">AISLE · 05 / 06 · Agents</div>
+      <div class="ais-h2" id="ais-h2"><span class="sy">Agents <em>beside</em>, not inside</span></div>
+      <p class="ais-sub" id="ais-s2">AI agents call AISLE only through APIs, never the database.</p>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var DUR = 6.2, ABS0 = 9.4;
+      var RMS = [0.59,0.33,0.39,0.21,0.32,0.24,0.33,0.3,0.47,0.33,0.28,0.39,0.36,0.42,0.18,0.54,0.18,0.36,0.32,0.43,0.36,0.29,0.58,0.32,0.39,0.22,0.35,0.2,0.31,0.37,0.43,0.33,0.28,0.38,0.38,0.42,0.23,0.49,0.19,0.3,0.41,0.4,0.35,0.6,0.62,0.5,0.76,0.43,0.48,0.79,0.51,0.65,0.62,0.58,0.82,0.55,0.51,0.74,0.48,0.61,0.79,0.49,0.72,0.58,0.51,0.78,0.58,0.48,0.75,0.41,0.59,0.69,0.4,0.77,0.53,0.61,0.86,0.59,0.5,0.77,0.64,0.76,0.7,0.6,0.72,0.55,0.46,0.94,0.56,0.32,0.78,0.22,0.76,0.51,0.7,0.93,0.57,0.84,0.9,0.64,0.48,0.74,0.67,1.0,0.54,0.82,0.9,0.76,0.82,0.94,0.54,0.53,0.53,0.3,0.78];
+      function rms(t) { var f = Math.max(0, (ABS0 + t) / 0.2), i = Math.floor(f), k = f - i; var a = RMS[Math.min(i, RMS.length - 1)], b = RMS[Math.min(i + 1, RMS.length - 1)]; return a + (b - a) * k; }
+      function clamp(v, a, b) { a = a == null ? 0 : a; b = b == null ? 1 : b; return Math.min(b, Math.max(a, v)); }
+      function lerp(a, b, t) { return a + (b - a) * t; }
+      function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+      function ramp(t, a, b) { return ease(clamp((t - a) / (b - a))); }
+      function rgba(hex, a) { var n = parseInt(hex.slice(1), 16); return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")"; }
+
+      var cv = document.getElementById("ais-cv"), ctx = cv.getContext("2d");
+      var W = 1440, H = 810, DPR = 1920 / 1440;
+      var cam = { yaw: 0, pitch: 0.3, zoom: 1, ty: 0 }, base = Math.min(W / 840, H / 780) * 1.08, ox = W / 2, oy = H * 0.66;
+      function P(x, y, z) { var cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), x1 = x * cy - z * sy, z1 = x * sy + z * cy, cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), y1 = y * cp - z1 * sp, z2 = y * sp + z1 * cp, d = 1100 / (1100 + z2), k = base * cam.zoom * d; return { x: ox + x1 * k, y: oy + cam.ty * base + y1 * k, k: k, z: z2 }; }
+      var G = {
+        ctx: ctx, P: P, fmin: 11,
+        ring: function (y, r, col, lw, alpha, dash, offs) { ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = lw; if (dash) { ctx.setLineDash(dash); ctx.lineDashOffset = offs || 0; } ctx.beginPath(); for (var i = 0; i <= 64; i++) { var a = (i / 64) * Math.PI * 2, q = P(Math.cos(a) * r, y, Math.sin(a) * r); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); ctx.restore(); },
+        line: function (a, b, col, lw, alpha, dash, offs) { var p1 = P(a[0], a[1], a[2]), p2 = P(b[0], b[1], b[2]); ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = lw; if (dash) { ctx.setLineDash(dash); ctx.lineDashOffset = offs || 0; } ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); ctx.restore(); },
+        dot: function (x, y, z, r, col, alpha, glow) { var q = P(x, y, z); ctx.save(); ctx.globalAlpha = alpha; if (glow) { ctx.shadowColor = col; ctx.shadowBlur = glow; } ctx.fillStyle = col; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1, r * q.k), 0, Math.PI * 2); ctx.fill(); ctx.restore(); return q; },
+        box: function (x, y, z, w, h, label, o) { o = o || {}; var q = P(x, y, z), bw = w * q.k, bh = h * q.k; ctx.save(); ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
+          if (o.glow) { ctx.shadowColor = o.stroke; ctx.shadowBlur = o.glow; }
+          ctx.fillStyle = o.fill || "rgba(255,255,255,.06)"; ctx.strokeStyle = o.stroke || "rgba(255,255,255,.3)"; ctx.lineWidth = o.lw || 1.4;
+          var rr = Math.min(o.radius == null ? 8 : o.radius, bh / 2) * Math.min(1, q.k * 1.2); ctx.beginPath(); ctx.roundRect(q.x - bw / 2, q.y - bh / 2, bw, bh, rr); ctx.fill(); ctx.shadowBlur = 0; ctx.stroke();
+          if (label) { var fs = clamp((o.fs || 12) * q.k * 1.08, G.fmin, (o.fs || 12) * 1.6); ctx.fillStyle = o.color || "#fff"; ctx.font = (o.weight || 600) + " " + fs + 'px "Instrument Sans",sans-serif'; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(label, q.x, q.y + 0.5); }
+          ctx.restore(); return q; },
+        text: function (x, y, z, s, col, size, alpha, font) { var q = P(x, y, z); ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = col; ctx.font = (font || "500") + " " + clamp(size * q.k * 1.08, G.fmin, size * 1.6) + 'px "JetBrains Mono",monospace'; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(s, q.x, q.y); ctx.restore(); },
+        glow: function (x, y, z, r, col, a) { var q = P(x, y, z), R = r * q.k; var g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, R); g.addColorStop(0, rgba(col, a)); g.addColorStop(1, rgba(col, 0)); ctx.fillStyle = g; ctx.fillRect(q.x - R, q.y - R, R * 2, R * 2); }
+      };
+
+      /* ---- AISLE scene, as drawn on the page ---- */
+      var AQ = "#45D6C2", AMB = "#F2B84B", MINT = "#CFF3EE", NBG = "#0B1724";
+      var MODS = ["Incident", "Case lifecycle", "Subject", "Exhibit", "Statement", "Enclosures", "Correspondence", "Offence"];
+      function aisleScene(w, t) {
+        var anim = t + 4, wMo = w.mo, wAg = w.ag;
+        G.glow(0, 0, 0, 420, "#1C6E7A", 0.4);
+        G.ring(70, 300, MINT, 1, 0.12); G.ring(70, 200, MINT, 1, 0.1);
+        if (wAg > 0.02) { var lanes = ["Assisted", "Supervised", "Autonomous"]; for (var l = 0; l < 3; l++) { var ly = -40 + l * 40, lr = 360 + l * 30, la = wAg * w.lane[l]; G.ring(ly, lr, l == 2 ? AMB : AQ, 1.4, la * 0.7, [4, 7], -anim * (10 + l * 6));
+            for (var d = 0; d < 4; d++) { var a = (d / 4) * Math.PI * 2 + anim * (0.2 + l * 0.12); G.dot(Math.cos(a) * lr, ly, Math.sin(a) * lr, 4, l == 2 ? AMB : AQ, la, 14); }
+            G.box(0, ly, -lr, 120, 28, lanes[l], { alpha: la, stroke: l == 2 ? AMB : AQ, fill: "rgba(11,23,36,.85)", fs: 11.5, radius: 14 }); }
+          G.ring(0, 140, AMB, 2, wAg * 0.9, [8, 6], anim * 16); G.text(0, 0, 140, "APIs only", AMB, 11, wAg, "600"); }
+        var R = 250, pos = [];
+        for (var i = 0; i < 8; i++) { var ang = (i / 8) * Math.PI * 2 + anim * 0.07; pos.push([Math.cos(ang) * R, 0, Math.sin(ang) * R]); }
+        for (var i2 = 0; i2 < 8; i2++) { G.line([0, 0, 0], pos[i2], MINT, 1.2, (0.25 + 0.45 * wMo) * w.mod[i2], [4, 6], -anim * 18); }
+        var c = [[-72,-52,-72],[72,-52,-72],[72,-52,72],[-72,-52,72],[-72,52,-72],[72,52,-72],[72,52,72],[-72,52,72]].map(function (v) { return G.P(v[0], v[1], v[2]); });
+        var faces = [[0,1,2,3],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]];
+        faces.sort(function (a, b) { var za = 0, zb = 0; for (var k = 0; k < 4; k++) { za += c[a[k]].z; zb += c[b[k]].z; } return zb - za; });
+        faces.forEach(function (f) { ctx.save(); ctx.beginPath(); ctx.moveTo(c[f[0]].x, c[f[0]].y); for (var k = 1; k < 4; k++) ctx.lineTo(c[f[k]].x, c[f[k]].y); ctx.closePath();
+          ctx.fillStyle = f[0] === 0 && f[1] === 1 && f[2] === 2 ? "rgba(69,214,194,.22)" : "rgba(16,41,58,.92)"; ctx.fill(); ctx.strokeStyle = AQ; ctx.globalAlpha = 0.85; ctx.lineWidth = 1.4; ctx.stroke(); ctx.restore(); });
+        G.glow(0, 0, 0, 170, AQ, 0.16 + 0.2 * rms(t)); // audio-reactive: cube glow breathes with the bed
+        G.text(0, -8, 0, "CASE 360", "#FFFFFF", 17, 0.95, "600");
+        G.text(0, 16, 0, "one record", MINT, 10, 0.75);
+        for (var m = 0; m < 8; m++) { var q = pos[m], ma = w.mod[m]; G.dot(q[0], q[1], q[2], 7, AQ, ma, 18);
+          G.box(q[0], q[1] - 30 - 14 * (1 - ma), q[2], MODS[m].length * 7.6 + 28, 28, MODS[m], { fill: "rgba(11,23,36,.82)", stroke: rgba(AQ, 0.5 + 0.5 * wMo), fs: 11.5, radius: 14, alpha: ma }); }
+      }
+
+      var CAM_INTRO = [0.32, 0.36, 0.92, 0], CAM_MOD = [-0.32, 0.44, 1.02, 0], CAM_AG = [0, 0.52, 0.74, -75];
+      function mix(a, b, k) { return [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k), lerp(a[3], b[3], k)]; }
+      function draw(t) {
+        var c = mix(mix(CAM_INTRO, CAM_MOD, ramp(t, 0.5, 2.2)), CAM_AG, ramp(t, 2.9, 4.1));
+        cam.yaw = c[0] + Math.sin((t + 4) * 0.25) * 0.05; cam.pitch = c[1]; cam.zoom = c[2]; cam.ty = c[3];
+        var mod = []; for (var i = 0; i < 8; i++) mod.push(ramp(t, 0.8 + i * 0.08, 1.05 + i * 0.08)); // modules arrive one by one
+        var w = { mo: ramp(t, 0.8, 1.8), ag: ramp(t, 3.1, 3.9), mod: mod, lane: [ramp(t, 3.2, 3.6), ramp(t, 3.35, 3.75), ramp(t, 3.5, 3.9)] };
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        ctx.fillStyle = NBG; ctx.fillRect(0, 0, W, H);
+        aisleScene(w, t);
+        var tg = ctx.createLinearGradient(0, 0, 0, H * 0.46); tg.addColorStop(0, NBG); tg.addColorStop(0.6, rgba(NBG, 0.7)); tg.addColorStop(1, rgba(NBG, 0)); ctx.fillStyle = tg; ctx.fillRect(0, 0, W, H * 0.46);
+      }
+
+      function build() {
+        var tl = gsap.timeline({ paused: true });
+        var clock = { t: 0 };
+        tl.fromTo(clock, { t: 0 }, { t: DUR, duration: DUR, ease: "none", onUpdate: function () { draw(clock.t); } }, 0);
+        // colour flood: the navy world opens over Atrium, seam lands on the 9.83 s beat
+        tl.fromTo("#ais-iris", { clipPath: "circle(0% at 50% 58%)" }, { clipPath: "circle(120% at 50% 58%)", duration: 0.45, ease: "power2.inOut" }, 0); // beat-locked: 9.83s (abs 9.4 + 0.43)
+
+        tl.fromTo(["#ais-k1", "#ais-h1", "#ais-s1"], { opacity: 0, filter: "blur(8px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.2, stagger: 0.07, ease: "power3.out" }, 0.48);
+        tl.to(["#ais-k1", "#ais-h1", "#ais-s1"], { opacity: 0, filter: "blur(8px)", y: -10, duration: 0.2, ease: "power2.in" }, 2.95);
+        tl.fromTo(["#ais-k2", "#ais-h2", "#ais-s2"], { opacity: 0, filter: "blur(8px)", y: 0 }, { opacity: 1, filter: "blur(0px)", duration: 0.2, stagger: 0.07, ease: "power3.out" }, 3.12);
+
+        draw(0);
+        window.__timelines["aisle"] = tl;
+      }
+      Promise.all([
+        document.fonts.load('600 16px "Instrument Sans"'),
+        document.fonts.load('400 40px "Instrument Serif"'),
+        document.fonts.load('500 16px "JetBrains Mono"')
+      ]).then(build, build);
+    })();
+  </script>
+</template>

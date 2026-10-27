@@ -1,0 +1,170 @@
+<template>
+  <style>
+    @font-face { font-family: "Instrument Serif"; src: url("assets/fonts/instrument-serif.woff2") format("woff2"); font-weight: 400; }
+    @font-face { font-family: "Instrument Sans"; src: url("assets/fonts/instrument-sans.woff2") format("woff2"); font-weight: 400 700; }
+    #root { position: absolute; inset: 0; background: #1e1230; color: #f1e9ff; overflow: hidden; font-family: "Instrument Sans", sans-serif; }
+    #atr-stage { position: absolute; inset: 0; }
+    #atr-cv { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; display: block; }
+    .atr-hl { position: absolute; left: 0; right: 0; top: 118px; text-align: center; padding: 0 180px; }
+    .atr-kick { font-family: "JetBrains Mono", monospace; font-size: 28px; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.72; }
+    .atr-h2 { font-family: "Instrument Serif", serif; font-weight: 400; text-transform: uppercase; line-height: 0.95; font-size: 118px; margin-top: 14px; }
+    .atr-h2 .sy { display: inline-block; transform: scaleY(1.08); }
+    .atr-h2 em { font-style: normal; color: #c08bff; }
+    .atr-h2 .w { display: inline-block; }
+    .atr-sub { margin: 22px auto 0; max-width: 46ch; font-size: 31px; opacity: 0.84; }
+    .atr-chips { display: flex; gap: 12px; justify-content: center; margin-top: 18px; }
+    .atr-chips span { font-family: "JetBrains Mono", monospace; font-size: 28px; padding: 5px 16px; border: 1.5px solid currentColor; border-radius: 99px; opacity: 0.8; }
+    #atr-rail { position: absolute; right: 64px; top: 330px; width: 28px; height: 460px; }
+    #atr-rail .rt { position: absolute; left: 13px; top: 0; bottom: 0; width: 2px; background: #f1e9ff; opacity: 0.2; }
+    #atr-rfill { position: absolute; left: 13px; top: 0; width: 2px; height: 460px; background: #c08bff; transform-origin: 50% 0; }
+    #atr-thumb { position: absolute; left: 4px; top: -24px; width: 20px; height: 48px; border-radius: 99px; background: #c08bff; box-shadow: 0 0 0 6px #1e1230, 0 0 24px #c08bff; }
+    .atr-tick { position: absolute; left: 7px; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%; border: 2px solid #f1e9ff; background: #1e1230; }
+    .atr-tick.on { background: #c08bff; border-color: #c08bff; }
+  </style>
+  <div id="root" data-composition-id="atrium" data-width="1920" data-height="1080">
+    <div id="atr-stage" class="clip" data-start="0" data-duration="9.8" data-layout-ignore>
+      <canvas id="atr-cv" width="1920" height="1080"></canvas>
+    </div>
+
+    <div id="atr-hl1" class="atr-hl clip" data-start="0" data-duration="3.3" data-layout-allow-overlap>
+      <div class="atr-kick" id="atr-k1">Atrium · Integration</div>
+      <div class="atr-h2" id="atr-h1"><span class="sy"><span class="w">Plug,</span> <span class="w"><em>don’t</em></span> <span class="w">replace</span></span></div>
+      <p class="atr-sub" id="atr-s1">Your existing systems, connected and made AI-ready.</p>
+    </div>
+
+    <div id="atr-hl2" class="atr-hl clip" data-start="3.15" data-duration="3.55" data-layout-allow-overlap>
+      <div class="atr-kick" id="atr-k2">Atrium · 01 / 06 · Intro</div>
+      <div class="atr-h2" id="atr-h2"><span class="sy">The <em>connective</em> layer</span></div>
+      <p class="atr-sub" id="atr-s2">Your systems stay where they are.</p>
+    </div>
+
+    <div id="atr-hl3" class="atr-hl clip" data-start="6.55" data-duration="3.25" data-layout-allow-overlap>
+      <div class="atr-kick" id="atr-k3">Atrium · 04 / 06 · Runtime</div>
+      <div class="atr-h2" id="atr-h3"><span class="sy">Runs on <em>your</em> AI</span></div>
+      <div class="atr-chips" id="atr-c3"><span>Orchestration</span><span>Agent harness</span></div>
+    </div>
+
+    <div id="atr-rail" class="clip" data-start="0" data-duration="9.8" data-layout-ignore>
+      <div class="rt"></div>
+      <div id="atr-rfill"></div>
+      <div class="atr-tick" id="atr-t0" style="top: 0%"></div>
+      <div class="atr-tick" id="atr-t1" style="top: 20%"></div>
+      <div class="atr-tick" id="atr-t2" style="top: 40%"></div>
+      <div class="atr-tick" id="atr-t3" style="top: 60%"></div>
+      <div class="atr-tick" id="atr-t4" style="top: 80%"></div>
+      <div class="atr-tick" id="atr-t5" style="top: 100%"></div>
+      <div id="atr-thumb"></div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      var DUR = 9.8, ABS0 = 0;
+      // music RMS, 0.2 s windows from t=0 (audio-reactive glow)
+      var RMS = [0.59,0.33,0.39,0.21,0.32,0.24,0.33,0.3,0.47,0.33,0.28,0.39,0.36,0.42,0.18,0.54,0.18,0.36,0.32,0.43,0.36,0.29,0.58,0.32,0.39,0.22,0.35,0.2,0.31,0.37,0.43,0.33,0.28,0.38,0.38,0.42,0.23,0.49,0.19,0.3,0.41,0.4,0.35,0.6,0.62,0.5,0.76,0.43,0.48,0.79,0.51,0.65,0.62,0.58,0.82,0.55,0.51,0.74,0.48,0.61,0.79,0.49,0.72,0.58,0.51,0.78,0.58,0.48,0.75,0.41,0.59,0.69,0.4,0.77,0.53,0.61,0.86,0.59,0.5,0.77,0.64,0.76,0.7,0.6,0.72,0.55,0.46,0.94,0.56,0.32,0.78,0.22,0.76,0.51,0.7,0.93,0.57,0.84,0.9,0.64,0.48,0.74,0.67,1.0,0.54,0.82,0.9,0.76,0.82,0.94,0.54,0.53,0.53,0.3,0.78];
+      function rms(t) { var f = Math.max(0, (ABS0 + t) / 0.2), i = Math.floor(f), k = f - i; var a = RMS[Math.min(i, RMS.length - 1)], b = RMS[Math.min(i + 1, RMS.length - 1)]; return a + (b - a) * k; }
+      function clamp(v, a, b) { a = a == null ? 0 : a; b = b == null ? 1 : b; return Math.min(b, Math.max(a, v)); }
+      function lerp(a, b, t) { return a + (b - a) * t; }
+      function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+      function ramp(t, a, b) { return ease(clamp((t - a) / (b - a))); }
+      function rgba(hex, a) { var n = parseInt(hex.slice(1), 16); return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")"; }
+
+      /* ---- the page's own 3D stage engine, driven by time instead of scroll ---- */
+      var cv = document.getElementById("atr-cv"), ctx = cv.getContext("2d");
+      var W = 1440, H = 810, DPR = 1920 / 1440;
+      var cam = { yaw: 0, pitch: 0.3, zoom: 1, ty: 0 }, base = Math.min(W / 840, H / 780) * 1.08, ox = W / 2, oy = H * 0.64;
+      function P(x, y, z) { var cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), x1 = x * cy - z * sy, z1 = x * sy + z * cy, cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), y1 = y * cp - z1 * sp, z2 = y * sp + z1 * cp, d = 1100 / (1100 + z2), k = base * cam.zoom * d; return { x: ox + x1 * k, y: oy + cam.ty * base + y1 * k, k: k, z: z2 }; }
+      var G = {
+        ctx: ctx, P: P, fmin: 11,
+        ring: function (y, r, col, lw, alpha, dash, offs) { ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = lw; if (dash) { ctx.setLineDash(dash); ctx.lineDashOffset = offs || 0; } ctx.beginPath(); for (var i = 0; i <= 64; i++) { var a = (i / 64) * Math.PI * 2, q = P(Math.cos(a) * r, y, Math.sin(a) * r); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); } ctx.stroke(); ctx.restore(); },
+        line: function (a, b, col, lw, alpha, dash, offs) { var p1 = P(a[0], a[1], a[2]), p2 = P(b[0], b[1], b[2]); ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = lw; if (dash) { ctx.setLineDash(dash); ctx.lineDashOffset = offs || 0; } ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke(); ctx.restore(); },
+        dot: function (x, y, z, r, col, alpha, glow) { var q = P(x, y, z); ctx.save(); ctx.globalAlpha = alpha; if (glow) { ctx.shadowColor = col; ctx.shadowBlur = glow; } ctx.fillStyle = col; ctx.beginPath(); ctx.arc(q.x, q.y, Math.max(1, r * q.k), 0, Math.PI * 2); ctx.fill(); ctx.restore(); return q; },
+        box: function (x, y, z, w, h, label, o) { o = o || {}; var q = P(x, y, z), bw = w * q.k, bh = h * q.k; ctx.save(); ctx.globalAlpha = o.alpha == null ? 1 : o.alpha;
+          if (o.glow) { ctx.shadowColor = o.stroke; ctx.shadowBlur = o.glow; }
+          ctx.fillStyle = o.fill || "rgba(255,255,255,.06)"; ctx.strokeStyle = o.stroke || "rgba(255,255,255,.3)"; ctx.lineWidth = o.lw || 1.4;
+          var rr = Math.min(o.radius == null ? 8 : o.radius, bh / 2) * Math.min(1, q.k * 1.2); ctx.beginPath(); ctx.roundRect(q.x - bw / 2, q.y - bh / 2, bw, bh, rr); ctx.fill(); ctx.shadowBlur = 0; ctx.stroke();
+          if (label) { var fs = clamp((o.fs || 12) * q.k * 1.08, G.fmin, (o.fs || 12) * 1.6); ctx.fillStyle = o.color || "#fff"; ctx.font = (o.weight || 600) + " " + fs + 'px "Instrument Sans",sans-serif'; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+            if (o.sub) { ctx.fillText(label, q.x, q.y - fs * 0.45); ctx.globalAlpha *= 0.7; ctx.font = "400 " + Math.max(9, fs * 0.72) + 'px "Instrument Sans",sans-serif'; ctx.fillText(o.sub, q.x, q.y + fs * 0.6); }
+            else ctx.fillText(label, q.x, q.y + 0.5); }
+          ctx.restore(); return q; },
+        text: function (x, y, z, s, col, size, alpha, font) { var q = P(x, y, z); ctx.save(); ctx.globalAlpha = alpha; ctx.fillStyle = col; ctx.font = (font || "500") + " " + clamp(size * q.k * 1.08, G.fmin, size * 1.6) + 'px "JetBrains Mono",monospace'; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(s, q.x, q.y); ctx.restore(); },
+        glow: function (x, y, z, r, col, a) { var q = P(x, y, z), R = r * q.k; var g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, R); g.addColorStop(0, rgba(col, a)); g.addColorStop(1, rgba(col, 0)); ctx.fillStyle = g; ctx.fillRect(q.x - R, q.y - R, R * 2, R * 2); }
+      };
+
+      /* ---- Atrium scene, as drawn on the page ---- */
+      var LIL = "#C08BFF", SOFT = "#E9DDFB", ABG = "#1E1230";
+      var LEFT = ["Case systems", "Documents and archives", "Rules engines"], RIGHT = ["Shared platforms", "Portals and email", "Project records"];
+      var AI_NAMES = ["Copilot", "Anthropic", "OpenAI", "Your own"];
+      function atriumScene(w, t) {
+        var anim = t, wIn = w.in, wRt = w.rt, SX = 310, BW = 172, LX = 230;
+        G.glow(0, 0, 0, 420, "#7A3FD1", 0.35);
+        for (var s = 0; s < 2; s++) { for (var i = 0; i < 3; i++) { var y = -60 + i * 60, sx = s ? 1 : -1;
+          G.line([sx * LX, y, 0], [sx * 82, y, 0], SOFT, 1.3, 0.55 + 0.3 * wIn, [5, 6], (s ? 1 : -1) * anim * 22);
+          if (wIn > 0.02) { for (var k = 0; k < 3; k++) { var u = (anim * 0.45 + k / 3 + i * 0.13) % 1; G.dot(sx * lerp(LX, 82, u), y, 0, 4, LIL, wIn * (1 - Math.abs(u - 0.5)), 14); } } } }
+        for (var r = 0; r < 18; r++) { var yy = -120 + r * 15, rad = 92 - r * 1.9; G.ring(yy, rad, r < 2 ? "#FFFFFF" : LIL, r < 2 ? 1.6 : 1.1, 0.18 + 0.5 * (1 - r / 18)); }
+        G.glow(0, -110, 0, 150, "#C08BFF", 0.3 + 0.25 * wRt + 0.22 * rms(t)); // audio-reactive: column glow breathes with the bed
+        var beam = 0.25 + 0.75 * wRt; G.line([0, -170, 0], [0, -122, 0], "#FFFFFF", 2, beam * 0.9);
+        var name = "Any AI platform", subl = "Copilot, Anthropic, OpenAI or your own";
+        if (t >= 6.9) { name = AI_NAMES[Math.min(3, Math.floor((t - 6.9) / 0.7))]; subl = "your AI platform"; }
+        G.box(0, -195, 0, 230, 50, name, { fill: "#FFFFFF", stroke: "#FFFFFF", color: "#2B1846", fs: 14, sub: subl, glow: 10 + 30 * wRt, radius: 6, alpha: w.card });
+        G.text(0, -30, 0, "ATRIUM", "#FFFFFF", 20, 0.95, "600");
+        G.text(0, -4, 0, "one shared space", SOFT, 10, 0.75);
+        if (wIn > 0.02) { G.box(-150, 120, 0, 70, 26, "MCP", { alpha: wIn, stroke: LIL, fill: "rgba(192,139,255,.2)", fs: 11, radius: 13 }); G.box(150, 120, 0, 70, 26, "RAG", { alpha: wIn, stroke: LIL, fill: "rgba(192,139,255,.2)", fs: 11, radius: 13 }); }
+        for (var b = 0; b < 3; b++) { var by = -60 + b * 60, hi = 0.55 + 0.45 * Math.max(wIn, w.intro);
+          G.box(-SX, by, 0, BW, 40, LEFT[b], { fill: "rgba(255,255,255,.07)", stroke: rgba(SOFT, 0.35 + 0.4 * wIn), fs: 12, alpha: hi * w.sys[b] });
+          G.box(SX, by, 0, BW, 40, RIGHT[b], { fill: "rgba(255,255,255,.07)", stroke: rgba(SOFT, 0.35 + 0.4 * wIn), fs: 12, alpha: hi * w.sys[b] }); }
+      }
+
+      // chapter cameras from the page: [yaw, pitch, zoom, ty]
+      var CAM_IN = [0.5, 0.22, 1.0, 0], CAM_INTRO = [-0.38, 0.34, 0.92, 0], CAM_RT = [0, 0.42, 1.08, 70];
+      function mix(a, b, k) { return [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k), lerp(a[3], b[3], k)]; }
+      function draw(t) {
+        var c = mix(mix(CAM_IN, CAM_INTRO, ramp(t, 3.15, 4.25)), CAM_RT, ramp(t, 6.4, 7.5));
+        cam.yaw = c[0] + Math.sin(t * 0.25) * 0.05 + t * 0.012; cam.pitch = c[1]; cam.zoom = c[2] * lerp(0.9, 1, ramp(t, 0, 1.4)); cam.ty = c[3];
+        var w = {
+          in: 1 - 0.45 * ramp(t, 3.2, 4.0),
+          intro: ramp(t, 3.2, 4.0),
+          rt: ramp(t, 6.5, 7.3),
+          card: ramp(t, 3.3, 4.0),
+          sys: [ramp(t, 0.3, 0.9), ramp(t, 0.45, 1.05), ramp(t, 0.6, 1.2)]
+        };
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        ctx.fillStyle = ABG; ctx.fillRect(0, 0, W, H);
+        ctx.save(); ctx.globalAlpha = ramp(t, 0, 0.6); atriumScene(w, t); ctx.restore();
+        var tg = ctx.createLinearGradient(0, 0, 0, H * 0.46); tg.addColorStop(0, ABG); tg.addColorStop(0.6, rgba(ABG, 0.7)); tg.addColorStop(1, rgba(ABG, 0)); ctx.fillStyle = tg; ctx.fillRect(0, 0, W, H * 0.46);
+      }
+
+      function build() {
+        var tl = gsap.timeline({ paused: true });
+        var clock = { t: 0 };
+        tl.fromTo(clock, { t: 0 }, { t: DUR, duration: DUR, ease: "none", onUpdate: function () { draw(clock.t); } }, 0);
+
+        // Hook: per-word blur-in, then hold
+        tl.fromTo("#atr-k1", { opacity: 0 }, { opacity: 0.72, duration: 0.3, ease: "power2.out" }, 0.15);
+        gsap.utils.toArray("#atr-h1 .w").forEach(function (el, i) {
+          tl.fromTo(el, { opacity: 0, filter: "blur(10px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.18, ease: "power4.out" }, 0.3 + i * 0.1);
+        });
+        tl.fromTo("#atr-s1", { opacity: 0, filter: "blur(8px)" }, { opacity: 0.84, filter: "blur(0px)", duration: 0.2, ease: "power3.out" }, 0.75);
+        // headline blur swap (as on the page: the old line blurs out, the new chapter fades in)
+        tl.to(["#atr-k1", "#atr-h1", "#atr-s1"], { opacity: 0, filter: "blur(8px)", y: -10, duration: 0.2, ease: "power2.in" }, 3.05);
+        tl.fromTo(["#atr-k2", "#atr-h2", "#atr-s2"], { opacity: 0, filter: "blur(8px)", y: 0 }, { opacity: 1, filter: "blur(0px)", duration: 0.2, stagger: 0.06, ease: "power3.out" }, 3.28);
+        tl.to(["#atr-k2", "#atr-h2", "#atr-s2"], { opacity: 0, filter: "blur(8px)", y: -10, duration: 0.2, ease: "power2.in" }, 6.4);
+        tl.fromTo(["#atr-k3", "#atr-h3", "#atr-c3"], { opacity: 0, filter: "blur(8px)", y: 0 }, { opacity: 1, filter: "blur(0px)", duration: 0.2, stagger: 0.06, ease: "power3.out" }, 6.62);
+
+        // side rail: scroll progress as time
+        tl.fromTo("#atr-rfill", { scaleY: 0 }, { scaleY: 0.6, duration: 6.4, ease: "power1.inOut" }, 3.2);
+        tl.fromTo("#atr-thumb", { y: 0 }, { y: 276, duration: 6.4, ease: "power1.inOut" }, 3.2);
+        tl.fromTo("#atr-rail", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 3.2);
+        [["#atr-t0", 3.25], ["#atr-t1", 4.3], ["#atr-t2", 5.4], ["#atr-t3", 6.6]].forEach(function (p) { tl.set(p[0], { className: "atr-tick on" }, p[1]); });
+
+        draw(0);
+        window.__timelines["atrium"] = tl;
+      }
+      Promise.all([
+        document.fonts.load('600 16px "Instrument Sans"'),
+        document.fonts.load('400 16px "Instrument Sans"'),
+        document.fonts.load('400 40px "Instrument Serif"'),
+        document.fonts.load('500 16px "JetBrains Mono"')
+      ]).then(build, build);
+    })();
+  </script>
+</template>
