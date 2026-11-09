@@ -272,7 +272,7 @@ const WORLDS = {
 };
 const REELS = [
   {id:'investor-day', title:'Investor Day in Five Minutes', world:'stage', date:'2026-10-26', place:'New York, via the replay', hook:'Everyone is asking if AI will kill consulting. Accenture answered with one number.', wide:true, len:'5:00'},
-  {id:'johor-day', title:'Johor Day', world:'journeys', date:'2026-11-01', place:'Johor', hook:'We drove to Johor for... this?', len:'0:58'},
+  {id:'johor-day', v:3, title:'Johor Day', world:'journeys', date:'2026-11-01', place:'Johor', hook:'We drove to Johor for... this?', len:'0:58'},
   {id:'benny-birthday', title:"Benny's Birthday", world:'people', date:'2026-11-05', place:'Singapore', hook:'Level up, unlocked.', len:'0:30'},
   {id:'saturday-fixie', title:'Saturday Fixie Ride', world:'ride', date:'2026-11-07', place:'Singapore', hook:"How Lee Chin's bike became a fixie.", len:'0:30'},
   {id:'sunday-fast-furious', title:'Sunday Fast and Furious', world:'ride', date:'2026-11-08', place:'Singapore', hook:'“Sunday easy ride,” they said. 47.81 km later.', len:'0:30'},
@@ -285,6 +285,7 @@ const REELS = [
   {id:'two-cars', title:'Two Cars, One Porch', world:'stage', date:'2026-11-07', place:'Home', soon:true}
 ].sort((a,b)=>a.date.localeCompare(b.date));
 const LIVE = REELS.filter(r=>!r.soon);
+const V = r => '?v=' + (r.v || 1); // bump a reel's v when its video is replaced
 const fmt = d => new Date(d+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short'});
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const $ = s => document.querySelector(s);
@@ -352,7 +353,7 @@ REELS.forEach((r,i)=>{
   g.rotation.y = a;
   const mat = new THREE.MeshBasicMaterial({color:0xffffff, side:THREE.FrontSide, transparent:true, opacity: r.soon?.55:1});
   if(r.soon){ mat.map = labelTexture(r); }
-  else { loader.load(`reels/${r.id}.jpg`, t=>{t.colorSpace=THREE.SRGBColorSpace; mat.map=t; mat.needsUpdate=true;}); }
+  else { loader.load(`reels/${r.id}.jpg${V(r)}`, t=>{t.colorSpace=THREE.SRGBColorSpace; mat.map=t; mat.needsUpdate=true;}); }
   const mesh = new THREE.Mesh(roundGeo, mat); mesh.userData.reel=r; g.add(mesh);
   const back = new THREE.Mesh(roundGeo, new THREE.MeshBasicMaterial({color:0x15111F, side:THREE.BackSide, transparent:true, opacity:.75})); g.add(back);
   const edge = new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({color:new THREE.Color(WORLDS[r.world].color), transparent:true, opacity:r.soon?.25:.6}));
@@ -418,7 +419,7 @@ function spinTo(c){ // bring card c to the front
 // muted loops on the front cards only
 function ensureVideo(c){
   if(c.video||c.r.soon) return;
-  const v=document.createElement('video'); v.src=`reels/${c.r.id}-loop.mp4`; v.muted=true; v.loop=true; v.playsInline=true; v.crossOrigin='anonymous'; v.preload='auto';
+  const v=document.createElement('video'); v.src=`reels/${c.r.id}-loop.mp4${V(c.r)}`; v.muted=true; v.loop=true; v.playsInline=true; v.crossOrigin='anonymous'; v.preload='auto';
   c.video=v; v.addEventListener('playing',()=>{ c.vtex=new THREE.VideoTexture(v); c.vtex.colorSpace=THREE.SRGBColorSpace; c.mat.map=c.vtex; c.mat.needsUpdate=true; },{once:true});
 }
 let activeFront=null;
@@ -463,7 +464,7 @@ Object.entries(WORLDS).forEach(([k,w])=>{
   const list=REELS.filter(r=>r.world===k), live=list.filter(r=>!r.soon);
   const b=document.createElement('button'); b.className='world reveal'; b.style.setProperty('--c',w.color);
   b.innerHTML=`<span class="orb" aria-hidden="true"></span><div><div class="n">${list.length}</div><h3>${w.name}</h3><p>${w.blurb}</p></div>
-    <div><div class="mono" style="color:var(--mute)">${live.length} playing · ${list.length-live.length} soon</div><div class="thumbs">${live.map(r=>`<img src="reels/${r.id}.jpg" alt="" loading="lazy">`).join('')}</div></div>`;
+    <div><div class="mono" style="color:var(--mute)">${live.length} playing · ${list.length-live.length} soon</div><div class="thumbs">${live.map(r=>`<img src="reels/${r.id}.jpg${V(r)}" alt="" loading="lazy">`).join('')}</div></div>`;
   b.onclick=()=>{ setFilter(k); $('#hero').scrollIntoView({behavior:reduced?'auto':'smooth'}); };
   wg.appendChild(b);
 });
@@ -474,7 +475,7 @@ const strip=$('#strip');
 REELS.forEach(r=>{
   const b=document.createElement('button'); b.className='frame'+(r.soon?' ghost':'');
   b.innerHTML = r.soon ? `<div class="poster"><span class="mono">Uploading soon</span></div>` :
-    `<div class="poster"><img src="reels/${r.id}.jpg" alt="" loading="lazy"><span class="play"><svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3 L17 10 L6 17 Z" fill="#0B0912"/></svg></span></div>`;
+    `<div class="poster"><img src="reels/${r.id}.jpg${V(r)}" alt="" loading="lazy"><span class="play"><svg width="14" height="14" viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3 L17 10 L6 17 Z" fill="#0B0912"/></svg></span></div>`;
   b.innerHTML += `<div class="d mono">${fmt(r.date)} · <span style="color:${WORLDS[r.world].color}">${WORLDS[r.world].name}</span></div><div class="t">${r.title}</div>`;
   if(r.soon){ b.disabled=true; b.setAttribute('aria-label',r.title+', uploading soon'); } else b.onclick=()=>openReel(r.id);
   strip.appendChild(b);
@@ -494,7 +495,7 @@ function openReel(id){
 }
 function show(){
   const r=LIVE[cur]; player.classList.toggle('wide',!!r.wide);
-  vid.src=`reels/${r.id}.mp4`; vid.poster=`reels/${r.id}.jpg`; vid.muted=false; vid.play().catch(()=>{vid.muted=true; vid.play();}); syncMute();
+  vid.src=`reels/${r.id}.mp4${V(r)}`; vid.poster=`reels/${r.id}.jpg${V(r)}`; vid.muted=false; vid.play().catch(()=>{vid.muted=true; vid.play();}); syncMute();
   $('#tMeta').innerHTML=`<span style="color:${WORLDS[r.world].color}">${WORLDS[r.world].name}</span> · ${fmt(r.date)} · ${r.place} · ${r.len}`;
   $('#tTitle').textContent=r.title; $('#tHook').textContent=r.hook; $('#copied').textContent='';
   const c=cards.find(c=>c.r.id===r.id); if(c) spinTo(c);
