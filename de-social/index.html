@@ -188,7 +188,7 @@ footer h2 span{color:var(--purple)}
   <div class="hero-copy">
     <div class="eyebrow mono"><b>網</b>De.Social · Reels</div>
     <h1>Every reel.<br><span>One orbit.</span></h1>
-    <p class="lede">Rides before sunrise, a fixie that used to be a road bike, a Sunday drive to Johor, a birthday at the office. Every reel I cut, spinning in one world. Drag to turn it, tap one to play.</p>
+    <p class="lede">Rides before sunrise, a fixie that used to be a road bike, a Sunday drive to Johor, Lucas taking on the pool. Every reel I cut, spinning in one world. Drag to turn it, tap one to play.</p>
     <div class="ctas">
       <button class="btn primary" id="playFront">Play the front reel</button>
       <a class="btn" href="https://de-brand.vercel.app/universe">Back to Universe</a>
@@ -272,16 +272,16 @@ const WORLDS = {
 };
 const REELS = [
   {id:'investor-day', title:'Investor Day in Five Minutes', world:'stage', date:'2026-10-26', place:'New York, via the replay', hook:'Everyone is asking if AI will kill consulting. Accenture answered with one number.', wide:true, len:'5:00'},
-  {id:'johor-day', title:'Johor Day', world:'journeys', date:'2026-11-01', place:'Johor', hook:'Road trip. Sunday morning.', len:'0:58'},
+  {id:'johor-day', title:'Johor Day', world:'journeys', date:'2026-11-01', place:'Johor', hook:'We drove to Johor for... this?', len:'0:58'},
   {id:'benny-birthday', title:"Benny's Birthday", world:'people', date:'2026-11-05', place:'Singapore', hook:'Level up, unlocked.', len:'0:30'},
   {id:'saturday-fixie', title:'Saturday Fixie Ride', world:'ride', date:'2026-11-07', place:'Singapore', hook:"How Lee Chin's bike became a fixie.", len:'0:30'},
   {id:'sunday-fast-furious', title:'Sunday Fast and Furious', world:'ride', date:'2026-11-08', place:'Singapore', hook:'“Sunday easy ride,” they said. 47.81 km later.', len:'0:30'},
   // Cut, video not uploaded yet. Add a file in /reels and drop "soon" to make them playable.
   {id:'futian-friday', title:'Futian Friday Night', world:'journeys', date:'2026-10-24', place:'Shenzhen', soon:true},
-  {id:'dawn-crew', title:'Dawn Crew', world:'ride', date:'2026-10-25', place:'Singapore', soon:true},
-  {id:'sunday-ride', title:'Sunday Ride', world:'ride', date:'2026-10-25', place:'Singapore', soon:true},
-  {id:'phonk-mode', title:'Phonk Mode', world:'people', date:'2026-10-26', place:'Singapore', soon:true},
-  {id:'lucas-pool', title:'Lucas vs the Pool', world:'people', date:'2026-10-26', place:'Singapore', soon:true},
+  {id:'dawn-crew', title:'Dawn Crew', world:'ride', date:'2026-10-25', place:'Singapore', hook:'Chase light. Fuel on kopi and eggs. See you at 5:20 next Sunday.', len:'0:45'},
+  {id:'sunday-ride', title:'Sunday Ride', world:'ride', date:'2026-10-25', place:'Mandai to Bukit Panjang', hook:'05:22, lights on. The chase, breakfast, first light.', len:'0:12'},
+  {id:'phonk-mode', title:'Phonk Mode', world:'people', date:'2026-10-26', place:'Singapore', hook:'Freestyle, zero rehearsal. Main character energy.', len:'0:15'},
+  {id:'lucas-pool', title:'Lucas vs the Pool', world:'people', date:'2026-10-26', place:'Singapore', hook:'Funny faces first. Then three jumps and one big splash.', len:'0:30'},
   {id:'two-cars', title:'Two Cars, One Porch', world:'stage', date:'2026-11-07', place:'Home', soon:true}
 ].sort((a,b)=>a.date.localeCompare(b.date));
 const LIVE = REELS.filter(r=>!r.soon);
