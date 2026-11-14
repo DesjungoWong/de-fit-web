@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Convenience wrapper: watch a video (URL or local file) with the
+# claude-video /watch skill, using the toolchain in tools/bin.
+#
+#   tools/watch https://youtu.be/xxxx --question "what is the recipe?"
+#   tools/watch clip.mp4 --detail efficient
+#
+# Engine: auto (Gemini if GEMINI_API_KEY is set, else local frames+transcript).
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+export PATH="$root/tools/bin:$PATH"
+exec python3 "$root/.claude/skills/watch/scripts/watch.py" "$@"
